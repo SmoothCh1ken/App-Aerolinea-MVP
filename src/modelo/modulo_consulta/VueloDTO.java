@@ -3,122 +3,88 @@ package modelo.modulo_consulta;
 import java.sql.Timestamp;
 
 /**
- * Objeto DTO (Data Transfer Object) para transportar los datos consolidados 
- * de la búsqueda de vuelos hacia la tabla de resultados en la Vista.
+ * Objeto DTO (Data Transfer Object) expandido para cumplir con el RF-03.
+ * Transporta los datos consolidados de la búsqueda de vuelos hacia la Vista.
  */
 public class VueloDTO {
 
-    // Atributos privados en lowerCamelCase
+    // Identificadores para la lógica de reserva
     private int idVuelo;
+    private int idTarifa;
+
+    // Datos Operacionales (RF-03)
     private String numeroVuelo;
-    private String aeropuertoOrigen;   // Ej: "BOG - El Dorado"
-    private String aeropuertoDestino;  // Ej: "MDE - José María Córdova"
+    private String aeropuertoOrigen;
+    private String aeropuertoDestino;
     private Timestamp fechaHoraSalida;
     private Timestamp fechaHoraLlegada;
+    private String duracion; // Se calculará en formato "Xh Ym"
     private int escalas;
     private String detalleEscala;
+    private String aeronave; // Matrícula o Modelo
+
+    // Datos Comerciales y Tarifarios (RF-03 y Filtros)
+    private String claseServicio;
+    private String nombreTarifa;
     private double precioBase;
-    private String nombreTarifa;       // Ej: "XS (Basic)" o "M (Classic)"
+    private int cuposDisponibles;
+    private int equipajeIncluido; // Para el filtro de equipaje
+    private String restricciones; // Ej: "Cambios: Sí | Reembolso: No"
 
     // Constructor vacío
     public VueloDTO() {
     }
 
-    // Constructor completo
-    public VueloDTO(int idVuelo, String numeroVuelo, String aeropuertoOrigen, String aeropuertoDestino,
-                    Timestamp fechaHoraSalida, Timestamp fechaHoraLlegada, int escalas,
-                    String detalleEscala, double precioBase, String nombreTarifa) {
-        this.idVuelo = idVuelo;
-        this.numeroVuelo = numeroVuelo;
-        this.aeropuertoOrigen = aeropuertoOrigen;
-        this.aeropuertoDestino = aeropuertoDestino;
-        this.fechaHoraSalida = fechaHoraSalida;
-        this.fechaHoraLlegada = fechaHoraLlegada;
-        this.escalas = escalas;
-        this.detalleEscala = detalleEscala;
-        this.precioBase = precioBase;
-        this.nombreTarifa = nombreTarifa;
-    }
-
     // --- GETTERS Y SETTERS ---
 
-    public int getIdVuelo() {
-        return idVuelo;
-    }
+    public int getIdVuelo() { return idVuelo; }
+    public void setIdVuelo(int idVuelo) { this.idVuelo = idVuelo; }
 
-    public void setIdVuelo(int idVuelo) {
-        this.idVuelo = idVuelo;
-    }
+    public int getIdTarifa() { return idTarifa; }
+    public void setIdTarifa(int idTarifa) { this.idTarifa = idTarifa; }
 
-    public String getNumeroVuelo() {
-        return numeroVuelo;
-    }
+    public String getNumeroVuelo() { return numeroVuelo; }
+    public void setNumeroVuelo(String numeroVuelo) { this.numeroVuelo = numeroVuelo; }
 
-    public void setNumeroVuelo(String numeroVuelo) {
-        this.numeroVuelo = numeroVuelo;
-    }
+    public String getAeropuertoOrigen() { return aeropuertoOrigen; }
+    public void setAeropuertoOrigen(String aeropuertoOrigen) { this.aeropuertoOrigen = aeropuertoOrigen; }
 
-    public String getAeropuertoOrigen() {
-        return aeropuertoOrigen;
-    }
+    public String getAeropuertoDestino() { return aeropuertoDestino; }
+    public void setAeropuertoDestino(String aeropuertoDestino) { this.aeropuertoDestino = aeropuertoDestino; }
 
-    public void setAeropuertoOrigen(String aeropuertoOrigen) {
-        this.aeropuertoOrigen = aeropuertoOrigen;
-    }
+    public Timestamp getFechaHoraSalida() { return fechaHoraSalida; }
+    public void setFechaHoraSalida(Timestamp fechaHoraSalida) { this.fechaHoraSalida = fechaHoraSalida; }
 
-    public String getAeropuertoDestino() {
-        return aeropuertoDestino;
-    }
+    public Timestamp getFechaHoraLlegada() { return fechaHoraLlegada; }
+    public void setFechaHoraLlegada(Timestamp fechaHoraLlegada) { this.fechaHoraLlegada = fechaHoraLlegada; }
 
-    public void setAeropuertoDestino(String aeropuertoDestino) {
-        this.aeropuertoDestino = aeropuertoDestino;
-    }
+    public String getDuracion() { return duracion; }
+    public void setDuracion(String duracion) { this.duracion = duracion; }
 
-    public Timestamp getFechaHoraSalida() {
-        return fechaHoraSalida;
-    }
+    public int getEscalas() { return escalas; }
+    public void setEscalas(int escalas) { this.escalas = escalas; }
 
-    public void setFechaHoraSalida(Timestamp fechaHoraSalida) {
-        this.fechaHoraSalida = fechaHoraSalida;
-    }
+    public String getDetalleEscala() { return detalleEscala; }
+    public void setDetalleEscala(String detalleEscala) { this.detalleEscala = detalleEscala; }
 
-    public Timestamp getFechaHoraLlegada() {
-        return fechaHoraLlegada;
-    }
+    public String getAeronave() { return aeronave; }
+    public void setAeronave(String aeronave) { this.aeronave = aeronave; }
 
-    public void setFechaHoraLlegada(Timestamp fechaHoraLlegada) {
-        this.fechaHoraLlegada = fechaHoraLlegada;
-    }
+    public String getClaseServicio() { return claseServicio; }
+    public void setClaseServicio(String claseServicio) { this.claseServicio = claseServicio; }
 
-    public int getEscalas() {
-        return escalas;
-    }
+    public String getNombreTarifa() { return nombreTarifa; }
+    public void setNombreTarifa(String nombreTarifa) { this.nombreTarifa = nombreTarifa; }
 
-    public void setEscalas(int escalas) {
-        this.escalas = escalas;
-    }
+    public double getPrecioBase() { return precioBase; }
+    public void setPrecioBase(double precioBase) { this.precioBase = precioBase; }
 
-    public String getDetalleEscala() {
-        return detalleEscala;
-    }
+    public int getCuposDisponibles() { return cuposDisponibles; }
+    public void setCuposDisponibles(int cuposDisponibles) { this.cuposDisponibles = cuposDisponibles; }
 
-    public void setDetalleEscala(String detalleEscala) {
-        this.detalleEscala = detalleEscala;
-    }
+    public int getEquipajeIncluido() { return equipajeIncluido; }
+    public void setEquipajeIncluido(int equipajeIncluido) { this.equipajeIncluido = equipajeIncluido; }
 
-    public double getPrecioBase() {
-        return precioBase;
-    }
-
-    public void setPrecioBase(double precioBase) {
-        this.precioBase = precioBase;
-    }
-
-    public String getNombreTarifa() {
-        return nombreTarifa;
-    }
-
-    public void setNombreTarifa(String nombreTarifa) {
-        this.nombreTarifa = nombreTarifa;
-    }
+    public String getRestricciones() { return restricciones; }
+    public void setRestricciones(String restricciones) { this.restricciones = restricciones; }
 }
