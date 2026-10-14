@@ -4,6 +4,7 @@ import modelo.modulo_consulta.ReservaDAO;
 import modelo.modulo_consulta.ReservaDTO;
 import vista.modulo_consulta.ConfirmacionReservaFrame;
 import vista.modulo_consulta.BuscarYSeleccionarVueloFrame;
+import controlador.modulo_pago.ResumenCompraController;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
@@ -95,9 +96,8 @@ public class ConfirmacionReservaController implements ActionListener {
         if (e.getSource() == vista.getBtnVolverInicio()) {
             volverAlInicio();
         } else if (e.getSource() == vista.getBtnProcederPago()) {
-            JOptionPane.showMessageDialog(vista, 
-                    "El Módulo de Pagos y Notificaciones se desarrollará en la siguiente fase del proyecto.", 
-                    "Próximamente", JOptionPane.INFORMATION_MESSAGE);
+            vista.dispose();
+            ResumenCompraController.iniciar(reservaFinal.getCodigoReserva());
         }
     }
 
