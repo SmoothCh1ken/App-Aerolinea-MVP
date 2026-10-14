@@ -11,6 +11,7 @@ import java.awt.event.ActionListener;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import vista.modulo_consulta.ConfirmacionReservaFrame;
 
 /**
  * Controlador para el registro de pasajeros (RF-06) y comprador (RF-07).
@@ -245,9 +246,10 @@ public class RegistroPasajerosController implements ActionListener {
         double totalPorPasajero = vueloIda.getPrecioBase() + (vueloRegreso != null ? vueloRegreso.getPrecioBase() : 0.0);
         reserva.setTotalPagar(totalPorPasajero * pasajerosProcesados.size());
 
-        JOptionPane.showMessageDialog(vista, 
-                "¡Datos de " + pasajerosProcesados.size() + " pasajero(s) y comprador validados correctamente!\n" +
-                "Listo para pasar a la Vista 3: Generación de Código Único de Reserva (RF-08).", 
-                "Paso 2 Completado", JOptionPane.INFORMATION_MESSAGE);
+        // Transición definitiva hacia la Vista 3
+        ConfirmacionReservaFrame vista3 = new ConfirmacionReservaFrame();
+        ReservaDAO reservaDAO = new ReservaDAO();
+        ConfirmacionReservaController confirmacionReservaController = new ConfirmacionReservaController(vista3, reservaDAO, reserva);
+        vista.dispose(); // Cierra la Vista 2
     }
 }
