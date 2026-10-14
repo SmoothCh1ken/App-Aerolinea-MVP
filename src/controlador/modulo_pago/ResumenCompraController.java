@@ -24,7 +24,7 @@ public class ResumenCompraController {
 
     public ResumenCompraController(ResumenCompraFrame vista) {
         this.vista = vista;
-        vista.addBuscarListener(e -> buscar());
+        vista.addBuscarListener(e -> buscar(false)); // Búsqueda manual muestra la alerta
         vista.addContinuarListener(e -> continuarAlPago());
     }
 
@@ -38,7 +38,7 @@ public class ResumenCompraController {
         frame.setVisible(true);
         if (codigoReserva != null && !codigoReserva.trim().isEmpty()) {
             frame.setCodigoIngresado(codigoReserva);
-            controlador.buscar();
+            controlador.buscar(false);
         }
     }
 
@@ -47,7 +47,7 @@ public class ResumenCompraController {
         SwingUtilities.invokeLater(() -> iniciar(args.length > 0 ? args[0] : null));
     }
 
-    private void buscar() {
+    private void buscar(boolean retornoSilencioso) {
         String codigo = vista.getCodigoIngresado();
         if (codigo.isEmpty()) {
             vista.mostrarError("Ingrese el código de la reserva.");
@@ -62,11 +62,16 @@ public class ResumenCompraController {
                 return;
             }
             vista.mostrarResumen(resumenActual);
+            
+            // Lógica trasladada desde la Vista para respetar el patrón MVC
+            if (!retornoSilencioso && !resumenActual.isPagable()) {
+                vista.mostrarMensaje("La reserva está \"" + resumenActual.getEstadoReserva() + "\" y no admite pago.");
+            }
+            
         } catch (SQLException ex) {
             vista.mostrarError("Error consultando la base de datos: " + ex.getMessage());
         }
     }
-
     private void continuarAlPago() {
         if (resumenActual == null || !resumenActual.isPagable()) {
             vista.mostrarError("La reserva no está disponible para pago.");
@@ -79,8 +84,9 @@ public class ResumenCompraController {
     }
 
     /** Se ejecuta al terminar o abandonar el pago: refresca el resumen y lo vuelve a mostrar. */
+    /** Se ejecuta al terminar o abandonar el pago: refresca el resumen y lo vuelve a mostrar. */
     private void regresarDelPago() {
-        buscar();
+        buscar(true); // Retorno silencioso: NO dispara el pop-up
         vista.setVisible(true);
     }
 }

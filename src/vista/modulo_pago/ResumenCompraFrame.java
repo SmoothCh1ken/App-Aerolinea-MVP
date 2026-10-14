@@ -158,9 +158,7 @@ public class ResumenCompraFrame extends JFrame {
         boolean pagable = r.isPagable();
         btnContinuar.setEnabled(pagable);
         lblEstado.setForeground(pagable ? new Color(0, 110, 0) : Color.RED.darker());
-        if (!pagable) {
-            mostrarMensaje("La reserva está \"" + r.getEstadoReserva() + "\" y no admite pago.");
-        }
+        
     }
 
     public void limpiar() {
