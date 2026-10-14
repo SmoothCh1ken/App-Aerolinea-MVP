@@ -14,6 +14,7 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import vista.modulo_consulta.RegistroPasajerosFrame;
 
 /**
  * Controlador principal para la ventana de Buscar y Seleccionar Vuelos.
@@ -251,13 +252,18 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
         vista.getBtnSeleccionarVuelo().setText("Finalizar Selección (Regreso)");
     }
 
+    /**
+     * Método puente que conecta la Vista 1 con la Vista 2 (RF-06, RF-07)
+     */
     private void avanzarSiguienteModulo(VueloDTO ida, VueloDTO regreso) {
-        String resumen = "¡Selección Exitosa!\n\nIda: " + ida.getNumeroVuelo() + "\n";
-        if (regreso != null) resumen += "Regreso: " + regreso.getNumeroVuelo() + "\n";
-        resumen += "Total Pasajeros: " + totalPasajerosCalculado;
+        int adultos = (int) vista.getSpnAdultos().getValue();
+        int ninos = (int) vista.getSpnNinos().getValue();
+        int bebes = (int) vista.getSpnBebes().getValue();
+
+        RegistroPasajerosFrame vista2 = new RegistroPasajerosFrame();
+        RegistroPasajerosController registroPasajerosController = new RegistroPasajerosController(vista2, modeloDAO, ida, regreso, adultos, ninos, bebes);
         
-        JOptionPane.showMessageDialog(vista, resumen, "Transición a Registro de Pasajeros", JOptionPane.INFORMATION_MESSAGE);
-        vista.dispose(); 
+        vista.dispose(); // Cierra la Vista 1
     }
 
     public static void main(String[] args) {
