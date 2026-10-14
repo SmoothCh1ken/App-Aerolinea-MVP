@@ -1,0 +1,86 @@
+package controlador.modulo_pago;
+
+import java.sql.SQLException;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import modelo.modulo_pago.PagoDAO;
+import modelo.modulo_pago.ResumenCompra;
+import modelo.modulo_pago.ResumenCompraDAO;
+import vista.modulo_pago.ResumenCompraFrame;
+import vista.modulo_pago.SeleccionMedioPagoFrame;
+
+/**
+ * Punto de entrada del módulo de pago.
+ *
+ * Desde otro módulo (p. ej. ConfirmacionReservaFrame) se abre con:
+ *     ResumenCompraController.iniciar(codigoReserva);
+ */
+public class ResumenCompraController {
+
+    private final ResumenCompraFrame vista;
+    private final ResumenCompraDAO resumenDAO = new ResumenCompraDAO();
+    private final PagoDAO pagoDAO = new PagoDAO();
+    private ResumenCompra resumenActual;
+
+    public ResumenCompraController(ResumenCompraFrame vista) {
+        this.vista = vista;
+        vista.addBuscarListener(e -> buscar());
+        vista.addContinuarListener(e -> continuarAlPago());
+    }
+
+    /** Crea la ventana y su controlador; si llega un código, lo consulta de una vez. */
+    public static void iniciar(String codigoReserva) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignorada) { }
+        ResumenCompraFrame frame = new ResumenCompraFrame();
+        ResumenCompraController controlador = new ResumenCompraController(frame);
+        frame.setVisible(true);
+        if (codigoReserva != null && !codigoReserva.trim().isEmpty()) {
+            frame.setCodigoIngresado(codigoReserva);
+            controlador.buscar();
+        }
+    }
+
+    /** Solo para probar el módulo de forma independiente (Run File). */
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> iniciar(args.length > 0 ? args[0] : null));
+    }
+
+    private void buscar() {
+        String codigo = vista.getCodigoIngresado();
+        if (codigo.isEmpty()) {
+            vista.mostrarError("Ingrese el código de la reserva.");
+            return;
+        }
+        try {
+            pagoDAO.liberarReservasExpiradas(); // CA-24: libera cupos vencidos
+            resumenActual = resumenDAO.buscarPorCodigo(codigo);
+            if (resumenActual == null) {
+                vista.limpiar();
+                vista.mostrarError("No existe una reserva con el código " + codigo + ".");
+                return;
+            }
+            vista.mostrarResumen(resumenActual);
+        } catch (SQLException ex) {
+            vista.mostrarError("Error consultando la base de datos: " + ex.getMessage());
+        }
+    }
+
+    private void continuarAlPago() {
+        if (resumenActual == null || !resumenActual.isPagable()) {
+            vista.mostrarError("La reserva no está disponible para pago.");
+            return;
+        }
+        SeleccionMedioPagoFrame seleccion = new SeleccionMedioPagoFrame();
+        new SeleccionMedioPagoController(seleccion, resumenActual, this::regresarDelPago);
+        vista.setVisible(false);
+        seleccion.setVisible(true);
+    }
+
+    /** Se ejecuta al terminar o abandonar el pago: refresca el resumen y lo vuelve a mostrar. */
+    private void regresarDelPago() {
+        buscar();
+        vista.setVisible(true);
+    }
+}
