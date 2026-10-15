@@ -27,6 +27,7 @@ public class VueloDTO {
     private String claseServicio;
     private String nombreTarifa;
     private double precioBase;
+    private double porcentajeImpuesto; // % de impuesto de la ruta
     private int cuposDisponibles;
     private int equipajeIncluido; // Para el filtro de equipaje
     private String restricciones; // Ej: "Cambios: Sí | Reembolso: No"
@@ -84,6 +85,9 @@ public class VueloDTO {
 
     public int getEquipajeIncluido() { return equipajeIncluido; }
     public void setEquipajeIncluido(int equipajeIncluido) { this.equipajeIncluido = equipajeIncluido; }
+
+    public double getPorcentajeImpuesto() { return porcentajeImpuesto; }
+    public void setPorcentajeImpuesto(double porcentajeImpuesto) { this.porcentajeImpuesto = porcentajeImpuesto; }
 
     public String getRestricciones() { return restricciones; }
     public void setRestricciones(String restricciones) { this.restricciones = restricciones; }

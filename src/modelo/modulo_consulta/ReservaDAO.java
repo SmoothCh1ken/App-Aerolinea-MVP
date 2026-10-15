@@ -1,6 +1,7 @@
 package modelo.modulo_consulta;
 
 import modelo.ConexionDB;
+import java.math.BigDecimal;
 import java.sql.*;
 
 /**
@@ -48,10 +49,9 @@ public class ReservaDAO {
                     return false;
                 }
 
-                // 4.2 Traducir categoría de texto a ID
-                int idCategoria = 1; // Por defecto Adulto
-                if (pasajero.getCategoria().equals("Niño")) idCategoria = 2;
-                else if (pasajero.getCategoria().equals("Bebé")) idCategoria = 3;
+                // 4.2 Traducir categoría de texto a ID y leer su factor de tarifa
+                int idCategoria = CalculadoraTarifa.idCategoria(pasajero.getCategoria());
+                BigDecimal factor = obtenerFactorCategoria(con, idCategoria);
 
                 // 4.3 Vincular Pasajero a la Reserva
                 int idReservaPasajero = insertarReservaPasajero(con, idReserva, idPersonaPasajero, idCategoria);
@@ -62,7 +62,7 @@ public class ReservaDAO {
 
                 // 4.4 Insertar Tramo de Ida
                 boolean tramoIdaOk = insertarTramoPasajero(con, idReservaPasajero, "Ida", 
-                        reserva.getVueloIda().getIdVuelo(), reserva.getVueloIda().getIdTarifa(), reserva.getVueloIda().getPrecioBase());
+                        reserva.getVueloIda(), factor);
                 if (!tramoIdaOk) {
                     con.rollback();
                     return false;
@@ -71,7 +71,7 @@ public class ReservaDAO {
                 // 4.5 Insertar Tramo de Regreso (Si existe)
                 if (reserva.getVueloRegreso() != null) {
                     boolean tramoRegresoOk = insertarTramoPasajero(con, idReservaPasajero, "Regreso", 
-                            reserva.getVueloRegreso().getIdVuelo(), reserva.getVueloRegreso().getIdTarifa(), reserva.getVueloRegreso().getPrecioBase());
+                            reserva.getVueloRegreso(), factor);
                     if (!tramoRegresoOk) {
                         con.rollback();
                         return false;
@@ -199,14 +199,32 @@ public class ReservaDAO {
         return -1;
     }
 
-    private boolean insertarTramoPasajero(Connection con, int idReservaPasajero, String sentido, int idVuelo, int idTarifa, double precioBase) throws SQLException {
-        String sql = "INSERT INTO Tramo_pasajero (id_reserva_pasajero, sentido, id_vuelo, id_tarifa, precio_base) VALUES (?, ?, ?, ?, ?)";
+    /** Factor de tarifa de la categoría (Adulto 1.00, Niño 0.75, ...). */
+    private BigDecimal obtenerFactorCategoria(Connection con, int idCategoria) throws SQLException {
+        String sql = "SELECT factor_tarifa FROM Categoria_pasajero WHERE id_categoria = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, idCategoria);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getBigDecimal(1);
+            }
+        }
+        throw new SQLException("No existe la categoría de pasajero con id " + idCategoria);
+    }
+
+    /** Guarda el tramo ya con factor por categoría e impuestos calculados (misma regla que Cambios). */
+    private boolean insertarTramoPasajero(Connection con, int idReservaPasajero, String sentido,
+                                          VueloDTO vuelo, BigDecimal factor) throws SQLException {
+        BigDecimal base = CalculadoraTarifa.precioBase(vuelo, factor);
+        BigDecimal impuestos = CalculadoraTarifa.impuesto(vuelo, base);
+
+        String sql = "INSERT INTO Tramo_pasajero (id_reserva_pasajero, sentido, id_vuelo, id_tarifa, precio_base, impuestos) VALUES (?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, idReservaPasajero);
             ps.setString(2, sentido);
-            ps.setInt(3, idVuelo);
-            ps.setInt(4, idTarifa);
-            ps.setDouble(5, precioBase);
+            ps.setInt(3, vuelo.getIdVuelo());
+            ps.setInt(4, vuelo.getIdTarifa());
+            ps.setBigDecimal(5, base);
+            ps.setBigDecimal(6, impuestos);
             return ps.executeUpdate() > 0;
         }
     }

@@ -1,13 +1,16 @@
 package modelo.modulo_consulta;
 
 import modelo.ConexionDB;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Clase DAO encargada de las operaciones de lectura en la base de datos
@@ -32,6 +35,25 @@ public class VueloDAO {
             e.printStackTrace();
         }
         return ciudades;
+    }
+
+    /**
+     * Factor de tarifa de cada categoría de pasajero (id_categoria -> factor).
+     * Adulto 1.00, Niño 0.75, Menor de 2 años 0.10 en los datos actuales.
+     */
+    public Map<Integer, BigDecimal> obtenerFactoresCategoria() {
+        Map<Integer, BigDecimal> factores = new HashMap<>();
+        String sql = "SELECT id_categoria, factor_tarifa FROM Categoria_pasajero";
+        try (Connection con = ConexionDB.conectar();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                factores.put(rs.getInt("id_categoria"), rs.getBigDecimal("factor_tarifa"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return factores;
     }
 
     /**
@@ -73,7 +95,7 @@ public class VueloDAO {
         sql.append("CONCAT(ad.codigo_iata, ' - ', ad.nombre) AS aeropuerto_destino, ");
         sql.append("v.fecha_hora_salida, v.fecha_hora_llegada, ");
         sql.append("TIMESTAMPDIFF(MINUTE, v.fecha_hora_salida, v.fecha_hora_llegada) AS minutos_vuelo, ");
-        sql.append("r.escalas, r.detalle_escala, ");
+        sql.append("r.escalas, r.detalle_escala, r.porcentaje_impuesto, ");
         sql.append("CONCAT(ae.modelo, ' (', ae.matricula, ')') AS aeronave, ");
         sql.append("cs.nombre AS clase_servicio, t.nombre AS nombre_tarifa, ");
         sql.append("vt.precio, vt.cupos_totales, t.equipaje_incluido_kg, ");
@@ -193,6 +215,7 @@ public class VueloDAO {
                     vuelo.setPrecioBase(rs.getDouble("precio"));
                     vuelo.setCuposDisponibles(rs.getInt("cupos_totales"));
                     vuelo.setEquipajeIncluido(rs.getInt("equipaje_incluido_kg"));
+                    vuelo.setPorcentajeImpuesto(rs.getDouble("porcentaje_impuesto"));
                     vuelo.setRestricciones(rs.getString("restricciones"));
 
                     int minutosTotales = rs.getInt("minutos_vuelo");

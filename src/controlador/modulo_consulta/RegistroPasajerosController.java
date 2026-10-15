@@ -8,9 +8,11 @@ import controlador.menu.Navegador;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import vista.modulo_consulta.ConfirmacionReservaFrame;
 
 /**
@@ -31,6 +33,7 @@ public class RegistroPasajerosController implements ActionListener {
     private final List<PasajeroFormPanel> listaPanelesPasajeros;
     private final List<Ciudad> listaCiudades;
     private final DecimalFormat formatoMoneda;
+    private final Map<Integer, BigDecimal> factoresCategoria; // id_categoria -> factor de tarifa
     private Navegador navegador;
 
     public RegistroPasajerosController(
@@ -52,6 +55,7 @@ public class RegistroPasajerosController implements ActionListener {
 
         this.listaPanelesPasajeros = new ArrayList<>();
         this.listaCiudades = modeloDAO.obtenerTodasLasCiudades();
+        this.factoresCategoria = modeloDAO.obtenerFactoresCategoria();
         this.formatoMoneda = new DecimalFormat("$ #,##0.00");
 
         inicializarVista();
@@ -66,10 +70,20 @@ public class RegistroPasajerosController implements ActionListener {
         vista.setVisible(true);
     }
 
+    /** Lo que paga UN pasajero de esa categoría: ida (+ regreso) con factor e impuestos. */
+    private BigDecimal totalPorCategoria(int idCategoria) {
+        BigDecimal factor = factoresCategoria.getOrDefault(idCategoria, BigDecimal.ONE);
+        BigDecimal total = CalculadoraTarifa.totalTramo(vueloIda, factor);
+        if (vueloRegreso != null) {
+            total = total.add(CalculadoraTarifa.totalTramo(vueloRegreso, factor));
+        }
+        return total;
+    }
+
     private void mostrarResumenItinerario() {
-        double totalPorPasajero = vueloIda.getPrecioBase() + (vueloRegreso != null ? vueloRegreso.getPrecioBase() : 0.0);
-        int totalPasajeros = cantidadAdultos + cantidadNinos + cantidadBebes;
-        double totalEstimado = totalPorPasajero * totalPasajeros;
+        BigDecimal totalEstimado = totalPorCategoria(CalculadoraTarifa.ID_ADULTO).multiply(BigDecimal.valueOf(cantidadAdultos))
+                .add(totalPorCategoria(CalculadoraTarifa.ID_NINO).multiply(BigDecimal.valueOf(cantidadNinos)))
+                .add(totalPorCategoria(CalculadoraTarifa.ID_BEBE).multiply(BigDecimal.valueOf(cantidadBebes)));
 
         StringBuilder resumen = new StringBuilder("<html>");
         resumen.append("<b>Itinerario de Ida:</b> ").append(vueloIda.getNumeroVuelo())
@@ -82,7 +96,7 @@ public class RegistroPasajerosController implements ActionListener {
         
         resumen.append("<br><b>Pasajeros:</b> ").append(cantidadAdultos).append(" Adulto(s), ")
                .append(cantidadNinos).append(" Niño(s), ").append(cantidadBebes).append(" Bebé(s)");
-        resumen.append(" | <b>Total Estimado:</b> <font color='green'>").append(formatoMoneda.format(totalEstimado)).append("</font>");
+        resumen.append(" | <b>Total Estimado (con impuestos):</b> <font color='green'>").append(formatoMoneda.format(totalEstimado)).append("</font>");
         resumen.append("</html>");
 
         vista.getLblResumenItinerario().setText(resumen.toString());
@@ -257,8 +271,11 @@ public class RegistroPasajerosController implements ActionListener {
         reserva.setListaPasajeros(pasajerosProcesados);
         reserva.setComprador(compradorProcesado);
         
-        double totalPorPasajero = vueloIda.getPrecioBase() + (vueloRegreso != null ? vueloRegreso.getPrecioBase() : 0.0);
-        reserva.setTotalPagar(totalPorPasajero * pasajerosProcesados.size());
+        BigDecimal totalReserva = BigDecimal.ZERO;
+        for (PasajeroDTO p : pasajerosProcesados) {
+            totalReserva = totalReserva.add(totalPorCategoria(CalculadoraTarifa.idCategoria(p.getCategoria())));
+        }
+        reserva.setTotalPagar(totalReserva.doubleValue());
 
         // Transición definitiva hacia la Vista 3
         ConfirmacionReservaFrame vista3 = new ConfirmacionReservaFrame();
