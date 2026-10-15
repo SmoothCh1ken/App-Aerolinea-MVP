@@ -1,6 +1,7 @@
 package modelo.modulo_consulta;
 
 import modelo.ConexionDB;
+import modelo.comun.Cupos;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -81,7 +82,7 @@ public class VueloDAO {
      */
     public List<VueloDTO> buscarVuelosAvanzado(
             int idOrigen, int idDestino, String fechaSalida, String fechaRegreso, // <-- NUEVO PARÁMETRO
-            int idClase, int totalPasajeros, 
+            int idClase, int plazasRequeridas, 
             Timestamp fechaMinimaSalida, 
             String criterioOrdenamiento, 
             boolean soloDirectos, double precioMaximo, boolean conEquipaje
@@ -98,7 +99,7 @@ public class VueloDAO {
         sql.append("r.escalas, r.detalle_escala, r.porcentaje_impuesto, ");
         sql.append("CONCAT(ae.modelo, ' (', ae.matricula, ')') AS aeronave, ");
         sql.append("cs.nombre AS clase_servicio, t.nombre AS nombre_tarifa, ");
-        sql.append("vt.precio, vt.cupos_totales, t.equipaje_incluido_kg, ");
+        sql.append("vt.precio, (vt.cupos_totales - " + Cupos.sqlOcupados("v.id_vuelo", "vt.id_tarifa") + ") AS cupos_libres, t.equipaje_incluido_kg, ");
         sql.append("CONCAT('Cambios: ', IF(t.permite_cambios, 'Sí', 'No'), ' | Reembolso: ', IF(t.permite_reembolso, 'Sí', 'No')) AS restricciones ");
         
         sql.append("FROM Vuelo v ");
@@ -115,7 +116,8 @@ public class VueloDAO {
         sql.append("AND DATE(v.fecha_hora_salida) = ? ");
         sql.append("AND v.estado = 'Programado' ");
         sql.append("AND cs.id_clase = ? ");
-        sql.append("AND vt.cupos_totales >= ? ");
+        // RF-19: se comparan los cupos LIBRES (totales - ocupados), no los totales
+        sql.append("AND (vt.cupos_totales - " + Cupos.sqlOcupados("v.id_vuelo", "vt.id_tarifa") + ") >= ? ");
 
         // RF-05: Para cuando consultamos la vuelta específicamente
         if (fechaMinimaSalida != null) {
@@ -135,7 +137,7 @@ public class VueloDAO {
             sql.append("  AND DATE(v2.fecha_hora_salida) = ? "); // La fecha de regreso
             sql.append("  AND v2.fecha_hora_salida > v.fecha_hora_llegada "); // Cruce clave: Regreso sale después que llega la Ida
             sql.append("  AND t2.id_clase = ? "); // Misma clase
-            sql.append("  AND vt2.cupos_totales >= ? "); // Mismos cupos
+            sql.append("  AND (vt2.cupos_totales - " + Cupos.sqlOcupados("v2.id_vuelo", "vt2.id_tarifa") + ") >= ? "); // Mismos cupos libres
             sql.append("  AND v2.estado = 'Programado' ");
             sql.append(") ");
         }
@@ -178,7 +180,7 @@ public class VueloDAO {
             ps.setInt(paramIndex++, idDestino);
             ps.setString(paramIndex++, fechaSalida);
             ps.setInt(paramIndex++, idClase);
-            ps.setInt(paramIndex++, totalPasajeros);
+            ps.setInt(paramIndex++, plazasRequeridas);
 
             if (fechaMinimaSalida != null) {
                 ps.setTimestamp(paramIndex++, fechaMinimaSalida);
@@ -190,7 +192,7 @@ public class VueloDAO {
                 ps.setInt(paramIndex++, idOrigen);  // El destino del regreso es el origen de ida
                 ps.setString(paramIndex++, fechaRegreso);
                 ps.setInt(paramIndex++, idClase);
-                ps.setInt(paramIndex++, totalPasajeros);
+                ps.setInt(paramIndex++, plazasRequeridas);
             }
 
             if (precioMaximo > 0) {
@@ -213,7 +215,7 @@ public class VueloDAO {
                     vuelo.setClaseServicio(rs.getString("clase_servicio"));
                     vuelo.setNombreTarifa(rs.getString("nombre_tarifa"));
                     vuelo.setPrecioBase(rs.getDouble("precio"));
-                    vuelo.setCuposDisponibles(rs.getInt("cupos_totales"));
+                    vuelo.setCuposDisponibles(rs.getInt("cupos_libres"));
                     vuelo.setEquipajeIncluido(rs.getInt("equipaje_incluido_kg"));
                     vuelo.setPorcentajeImpuesto(rs.getDouble("porcentaje_impuesto"));
                     vuelo.setRestricciones(rs.getString("restricciones"));

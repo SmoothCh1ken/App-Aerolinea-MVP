@@ -75,9 +75,14 @@ public class ConfirmacionReservaController implements ActionListener {
             vista.setVisible(true);
         } else {
             // Error en base de datos (Rollback ejecutado)
-            JOptionPane.showMessageDialog(null, 
-                    "Ocurrió un error crítico al guardar la reserva en la base de datos.\nLa transacción ha sido cancelada para proteger la integridad de los datos.",
-                    "Error de Transacción", JOptionPane.ERROR_MESSAGE);
+            String motivo = modeloDAO.getUltimoError(); // p. ej. "ya no hay cupos suficientes"
+            if (motivo != null) {
+                JOptionPane.showMessageDialog(null, motivo, "Reserva no disponible", JOptionPane.WARNING_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(null, 
+                        "Ocurrió un error crítico al guardar la reserva en la base de datos.\nLa transacción ha sido cancelada para proteger la integridad de los datos.",
+                        "Error de Transacción", JOptionPane.ERROR_MESSAGE);
+            }
             
             vista.dispose();
             navegador.irAlMenu();

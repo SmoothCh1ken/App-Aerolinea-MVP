@@ -31,7 +31,7 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
     private boolean buscandoRegreso = false;
     private VueloDTO vueloIdaSeleccionado = null;
     private List<VueloDTO> ultimaListaVuelosConsultada = null;
-    private int totalPasajerosCalculado = 1;
+    private int plazasRequeridas = 1; // adultos + niños (los menores de 2 años no ocupan asiento)
 
     public BuscarYSeleccionarVueloController(BuscarYSeleccionarVueloFrame vista, VueloDAO modeloDAO, Navegador navegador) {
         this.vista = vista;
@@ -166,7 +166,7 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
         int adultos = (int) vista.getSpnAdultos().getValue();
         int ninos = (int) vista.getSpnNinos().getValue();
         int bebes = (int) vista.getSpnBebes().getValue();
-        totalPasajerosCalculado = adultos + ninos + bebes;
+        plazasRequeridas = adultos + ninos;
 
         String ordenamiento = (String) vista.getCmbOrdenamiento().getSelectedItem();
         boolean soloDirectos = vista.getChkSoloDirectos().isSelected();
@@ -178,7 +178,7 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
         // Se envía el parámetro fechaRegresoSql al nuevo método del DAO
         ultimaListaVuelosConsultada = modeloDAO.buscarVuelosAvanzado(
                 origen.getIdCiudad(), destino.getIdCiudad(), formatoSql.format(dateIda), fechaRegresoSql,
-                clase.getIdClase(), totalPasajerosCalculado, null,
+                clase.getIdClase(), plazasRequeridas, null,
                 ordenamiento, soloDirectos, precioMax, conEquipaje
         );
 
@@ -259,7 +259,7 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
         // El parámetro fechaRegreso va null (4to argumento) porque estamos consultando la vuelta en sí.
         ultimaListaVuelosConsultada = modeloDAO.buscarVuelosAvanzado(
                 destino.getIdCiudad(), origen.getIdCiudad(), formatoSql.format(dateRegreso), null,
-                clase.getIdClase(), totalPasajerosCalculado, vueloIdaSeleccionado.getFechaHoraLlegada(),
+                clase.getIdClase(), plazasRequeridas, vueloIdaSeleccionado.getFechaHoraLlegada(),
                 ordenamiento, soloDirectos, precioMax, conEquipaje
         );
 

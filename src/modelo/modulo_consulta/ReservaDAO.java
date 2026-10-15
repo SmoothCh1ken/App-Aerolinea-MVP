@@ -1,8 +1,12 @@
 package modelo.modulo_consulta;
 
 import modelo.ConexionDB;
+import modelo.comun.Cupos;
 import java.math.BigDecimal;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Clase DAO encargada de persistir la Reserva completa de manera transaccional.
@@ -17,13 +21,29 @@ public class ReservaDAO {
      * @param reserva Objeto DTO con toda la información empaquetada.
      * @return true si la transacción fue exitosa, false en caso contrario.
      */
+    /** Motivo legible del último fallo (por ejemplo, "sin cupos"); null si fue un error técnico. */
+    private String ultimoError;
+
+    public String getUltimoError() { return ultimoError; }
+
     public boolean registrarReservaTransaccional(ReservaDTO reserva) {
         Connection con = null;
+        ultimoError = null;
 
         try {
             con = ConexionDB.conectar();
             // 1. Iniciar Transacción (Desactivar auto-commit)
             con.setAutoCommit(false);
+            // Cada lectura debe ver lo último confirmado por otros clientes (necesario para contar cupos)
+            con.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+            // 1.1 RF-19: revalidar y bloquear los cupos ANTES de guardar nada
+            String sinCupos = validarYBloquearCupos(con, reserva);
+            if (sinCupos != null) {
+                ultimoError = sinCupos;
+                con.rollback();
+                return false;
+            }
 
             // 2. Procesar Comprador (Obtener ID o Insertarlo)
             int idComprador = obtenerOInsertarPersona(con, reserva.getComprador());
@@ -197,6 +217,70 @@ public class ReservaDAO {
             }
         }
         return -1;
+    }
+
+    /**
+     * Comprueba que los vuelos seleccionados sigan programados y con cupos libres para las plazas
+     * que necesita la reserva. Bloquea las filas de Vuelo_tarifa (FOR UPDATE) hasta el commit, así dos
+     * clientes que reservan a la vez el último cupo no pueden pasar los dos.
+     * @return null si todo está bien; si no, el mensaje para el usuario.
+     */
+    private String validarYBloquearCupos(Connection con, ReservaDTO reserva) throws SQLException {
+        // Se bloquea siempre en el mismo orden (por id de vuelo) para evitar interbloqueos
+        List<VueloDTO> vuelos = new ArrayList<>();
+        vuelos.add(reserva.getVueloIda());
+        if (reserva.getVueloRegreso() != null) vuelos.add(reserva.getVueloRegreso());
+        vuelos.sort(Comparator.comparingInt(VueloDTO::getIdVuelo));
+
+        // 1. Bloquear y leer el total de cupos y el estado de cada vuelo
+        int[] totales = new int[vuelos.size()];
+        String sqlLock = "SELECT vt.cupos_totales, v.estado FROM Vuelo_tarifa vt "
+                       + "JOIN Vuelo v ON v.id_vuelo = vt.id_vuelo "
+                       + "WHERE vt.id_vuelo = ? AND vt.id_tarifa = ? FOR UPDATE";
+        for (int i = 0; i < vuelos.size(); i++) {
+            VueloDTO v = vuelos.get(i);
+            try (PreparedStatement ps = con.prepareStatement(sqlLock)) {
+                ps.setInt(1, v.getIdVuelo());
+                ps.setInt(2, v.getIdTarifa());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        return "La tarifa seleccionada del vuelo " + v.getNumeroVuelo() + " ya no existe. Realice una nueva búsqueda.";
+                    }
+                    if (!"Programado".equals(rs.getString("estado"))) {
+                        return "El vuelo " + v.getNumeroVuelo() + " ya no está disponible para reservar. Realice una nueva búsqueda.";
+                    }
+                    totales[i] = rs.getInt("cupos_totales");
+                }
+            }
+        }
+
+        // 2. Plazas que necesita la reserva: solo cuentan los pasajeros que ocupan asiento
+        int plazas = 0;
+        for (PasajeroDTO p : reserva.getListaPasajeros()) {
+            if (ocupaCupo(con, CalculadoraTarifa.idCategoria(p.getCategoria()))) plazas++;
+        }
+
+        // 3. Comparar contra los cupos libres actuales (misma regla que la búsqueda y Cambios)
+        for (int i = 0; i < vuelos.size(); i++) {
+            VueloDTO v = vuelos.get(i);
+            int libres = totales[i] - Cupos.ocupados(con, v.getIdVuelo(), v.getIdTarifa());
+            if (libres < plazas) {
+                return "Ya no hay cupos suficientes en el vuelo " + v.getNumeroVuelo() + " (" + v.getNombreTarifa() + ").\n"
+                     + "Quedan " + Math.max(libres, 0) + " y se necesitan " + plazas + ". Realice una nueva búsqueda.";
+            }
+        }
+        return null;
+    }
+
+    private boolean ocupaCupo(Connection con, int idCategoria) throws SQLException {
+        String sql = "SELECT ocupa_cupo FROM Categoria_pasajero WHERE id_categoria = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, idCategoria);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getBoolean(1);
+            }
+        }
+        throw new SQLException("No existe la categoría de pasajero con id " + idCategoria);
     }
 
     /** Factor de tarifa de la categoría (Adulto 1.00, Niño 0.75, ...). */

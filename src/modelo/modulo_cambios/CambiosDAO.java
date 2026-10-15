@@ -1,6 +1,7 @@
 package modelo.modulo_cambios;
 
 import modelo.ConexionDB;
+import modelo.comun.Cupos;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -162,22 +163,10 @@ public class CambiosDAO {
         return disponibles;
     }
 
-    /** Cuántos cupos ya están ocupados en un vuelo y tarifa. */
+    /** Cuántos cupos ya están ocupados en un vuelo y tarifa (regla compartida con Consulta y Reserva). */
     private int contarOcupados(int idVuelo, int idTarifa) throws SQLException {
-        String sql = "SELECT COUNT(*) "
-                   + "FROM Tramo_pasajero tp "
-                   + "JOIN Reserva_pasajero rp ON rp.id_reserva_pasajero = tp.id_reserva_pasajero "
-                   + "JOIN Categoria_pasajero cp ON cp.id_categoria = rp.id_categoria "
-                   + "JOIN Reserva r ON r.id_reserva = rp.id_reserva "
-                   + "WHERE tp.id_vuelo = ? AND tp.id_tarifa = ? AND cp.ocupa_cupo = 1 "
-                   + "AND r.estado IN ('Pendiente de pago', 'Confirmada')";
-        try (Connection con = ConexionDB.conectar();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, idVuelo);
-            ps.setInt(2, idTarifa);
-            ResultSet rs = ps.executeQuery();
-            rs.next();
-            return rs.getInt(1);
+        try (Connection con = ConexionDB.conectar()) {
+            return Cupos.ocupados(con, idVuelo, idTarifa);
         }
     }
 
