@@ -5,7 +5,7 @@ import modelo.modulo_consulta.ReservaDTO;
 import vista.modulo_consulta.ConfirmacionReservaFrame;
 import vista.modulo_consulta.BuscarYSeleccionarVueloFrame;
 import controlador.modulo_pago.ResumenCompraController;
-
+import controlador.menu.Navegador; // <--- Importa el navegador
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -27,11 +27,13 @@ public class ConfirmacionReservaController implements ActionListener {
     
     private final DecimalFormat formatoMoneda;
     private final SimpleDateFormat formatoFecha;
+    private Navegador navegador; // <--- NUEVO ATRIBUTO
 
-    public ConfirmacionReservaController(ConfirmacionReservaFrame vista, ReservaDAO modeloDAO, ReservaDTO reservaFinal) {
+    public ConfirmacionReservaController(ConfirmacionReservaFrame vista, ReservaDAO modeloDAO, ReservaDTO reservaFinal, Navegador navegador) { // <--- NUEVO PARÁMETRO
         this.vista = vista;
         this.modeloDAO = modeloDAO;
         this.reservaFinal = reservaFinal;
+        this.navegador = navegador; // <--- ASIGNACIÓN
         
         this.formatoMoneda = new DecimalFormat("$ #,##0.00");
         this.formatoFecha = new SimpleDateFormat("dd/MM/yyyy HH:mm");
@@ -43,6 +45,8 @@ public class ConfirmacionReservaController implements ActionListener {
     private void configurarEventos() {
         vista.getBtnVolverInicio().addActionListener(this);
         vista.getBtnProcederPago().addActionListener(this);
+        // La X equivale a "Volver al inicio": la reserva queda pendiente de pago hasta su expiración
+        vista.addCierreListener(() -> { vista.dispose(); navegador.irAlMenu(); });
     }
 
     /**
@@ -74,7 +78,9 @@ public class ConfirmacionReservaController implements ActionListener {
             JOptionPane.showMessageDialog(null, 
                     "Ocurrió un error crítico al guardar la reserva en la base de datos.\nLa transacción ha sido cancelada para proteger la integridad de los datos.",
                     "Error de Transacción", JOptionPane.ERROR_MESSAGE);
-            volverAlInicio();
+            
+            vista.dispose();
+            navegador.irAlMenu();
         }
     }
 
@@ -94,19 +100,14 @@ public class ConfirmacionReservaController implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getSource() == vista.getBtnVolverInicio()) {
-            volverAlInicio();
+            vista.dispose();
+            navegador.irAlMenu(); // <--- Volver al menú de forma limpia
+            
         } else if (e.getSource() == vista.getBtnProcederPago()) {
             vista.dispose();
-            ResumenCompraController.iniciar(reservaFinal.getCodigoReserva());
+            navegador.iniciarPago(reservaFinal.getCodigoReserva()); // <--- Iniciar módulo de pagos vía Navegador
         }
     }
-
-    private void volverAlInicio() {
-        vista.dispose();
-        // Reiniciar el ciclo abriendo la Vista 1
-        BuscarYSeleccionarVueloFrame frameVuelos = new BuscarYSeleccionarVueloFrame();
-        // Nota: Para compilar sin errores necesitas tener VueloDAO en este contexto o pasarlo si es necesario.
-        // Asumiendo que VueloDAO tiene un constructor vacío para simplificar el reinicio:
-        new BuscarYSeleccionarVueloController(frameVuelos, new modelo.modulo_consulta.VueloDAO());
-    }
+    
+    // (Asegúrate de que el viejo método volverAlInicio() quede totalmente borrado, ya no lo necesitamos).
 }

@@ -43,7 +43,7 @@ public class RegistroPasajerosFrame extends JFrame {
 
     private void initComponents() {
         setTitle("Registro de Pasajeros y Comprador");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(950, 780); 
         setLocationRelativeTo(null);
         setMinimumSize(new Dimension(800, 650));
@@ -178,4 +178,11 @@ public class RegistroPasajerosFrame extends JFrame {
     public JTextField getTxtCompDireccion() { return txtCompDireccion; }
     public JButton getBtnAtras() { return btnAtras; }
     public JButton getBtnContinuar() { return btnContinuar; }
+
+    /** Para que la X de la ventana ejecute la acción indicada (ej. volver al menú). */
+    public void addCierreListener(Runnable accion) {
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { accion.run(); }
+        });
+    }
 }

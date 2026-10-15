@@ -16,7 +16,11 @@ public class GestionReservaFrame extends JFrame {
 
     private static final DateTimeFormatter FORMATO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
+    /** CLIENTE: solo "Mi reserva". OPERACIONES: solo la gestión de vuelos (personal de la aerolínea). */
+    public enum Modo { CLIENTE, OPERACIONES }
+
     private final CambiosController controlador = new CambiosController();
+    private final Runnable alSalir;   // acción al cerrar (volver al menú); puede ser null
     private ReservaInfoDTO reserva;   // la reserva que se está mostrando
 
     // Pestaña 1
@@ -29,18 +33,51 @@ public class GestionReservaFrame extends JFrame {
             new String[]{"ID", "Vuelo", "Ruta", "Salida", "Llegada", "Estado"}, 0);
     private JTable tabla = new JTable(modeloTabla);
 
-    public GestionReservaFrame() {
-        setTitle("Gestión de reservas - Cambios, cancelaciones y reembolsos");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+    public GestionReservaFrame(Modo modo, Runnable alSalir) {
+        this.alSalir = alSalir;
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(860, 540);
         setLocationRelativeTo(null);
 
-        JTabbedPane pestanas = new JTabbedPane();
-        pestanas.addTab("Mi reserva", crearPanelReserva());
-        pestanas.addTab("Operaciones de vuelos", crearPanelOperaciones());
-        add(pestanas);
+        if (modo == Modo.CLIENTE) {
+            setTitle("Mi reserva - Cambios, cancelaciones y reembolsos");
+            add(crearPanelReserva(), BorderLayout.CENTER);
+        } else {
+            setTitle("Operaciones de vuelos - Aerolínea");
+            add(crearPanelOperaciones(), BorderLayout.CENTER);
+            cargarVuelos();
+        }
 
-        cargarVuelos();
+        JPanel barra = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JButton btnMenu = new JButton("Volver al menú");
+        btnMenu.addActionListener(e -> salir());
+        barra.add(btnMenu);
+        add(barra, BorderLayout.SOUTH);
+
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { salir(); }
+        });
+    }
+
+    /** Cierra la ventana y regresa al menú principal. */
+    private void salir() {
+        dispose();
+        if (alSalir != null) {
+            alSalir.run();
+        }
+    }
+
+    /** Rellena código y apellido (por ejemplo, al venir desde un pago) y consulta de una vez. */
+    public void precargar(String codigo, String apellido) {
+        if (codigo != null) {
+            txtCodigo.setText(codigo);
+        }
+        if (apellido != null) {
+            txtApellido.setText(apellido);
+        }
+        if (codigo != null && apellido != null) {
+            consultar();
+        }
     }
 
     // =====================================================================
@@ -354,9 +391,5 @@ public class GestionReservaFrame extends JFrame {
 
     private void mostrarError(Exception ex) {
         JOptionPane.showMessageDialog(this, ex.getMessage(), "Aviso", JOptionPane.WARNING_MESSAGE);
-    }
-
-    public static void main(String[] args) {
-        java.awt.EventQueue.invokeLater(() -> new GestionReservaFrame().setVisible(true));
     }
 }

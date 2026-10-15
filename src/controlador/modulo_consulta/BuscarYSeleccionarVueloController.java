@@ -16,14 +16,13 @@ import java.util.Date;
 import java.util.List;
 import vista.modulo_consulta.RegistroPasajerosFrame;
 
-/**
- * Controlador principal para la ventana de Buscar y Seleccionar Vuelos.
- * Integra la captura anticipada de la fecha de regreso para la subconsulta EXISTS.
- */
+import controlador.menu.Navegador; // <-- Importa la interfaz
+
 public class BuscarYSeleccionarVueloController implements ActionListener {
 
-    private final BuscarYSeleccionarVueloFrame vista;
-    private final VueloDAO modeloDAO;
+    private BuscarYSeleccionarVueloFrame vista;
+    private VueloDAO modeloDAO;
+    private Navegador navegador;
     private final SimpleDateFormat formatoFechaTabla;
     private final SimpleDateFormat formatoSql;
     private final DecimalFormat formatoMoneda;
@@ -34,9 +33,10 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
     private List<VueloDTO> ultimaListaVuelosConsultada = null;
     private int totalPasajerosCalculado = 1;
 
-    public BuscarYSeleccionarVueloController(BuscarYSeleccionarVueloFrame vista, VueloDAO modeloDAO) {
+    public BuscarYSeleccionarVueloController(BuscarYSeleccionarVueloFrame vista, VueloDAO modeloDAO, Navegador navegador) {
         this.vista = vista;
         this.modeloDAO = modeloDAO;
+        this.navegador = navegador; 
         this.formatoFechaTabla = new SimpleDateFormat("yyyy-MM-dd HH:mm");
         this.formatoSql = new SimpleDateFormat("yyyy-MM-dd");
         this.formatoMoneda = new DecimalFormat("$ #,##0.00");
@@ -71,8 +71,24 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
     private void configurarEventos() {
         vista.getBtnConsultar().addActionListener(this);
         vista.getBtnSeleccionarVuelo().addActionListener(this);
+        vista.getBtnVolverMenu().addActionListener(e -> volverAlMenu());
+        vista.addCierreListener(this::volverAlMenu);
         vista.getRbtnSoloIda().addActionListener(e -> gestionarTipoViaje());
         vista.getRbtnIdaYVuelta().addActionListener(e -> gestionarTipoViaje());
+    }
+
+    /** Volver al menú principal (botón o X). Pide confirmación si ya había elegido un vuelo de ida. */
+    private void volverAlMenu() {
+        if (vueloIdaSeleccionado != null) {
+            int confirm = JOptionPane.showConfirmDialog(vista,
+                    "Se perderá su selección de vuelos. ¿Volver al menú principal?",
+                    "Volver al menú", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+        vista.dispose();
+        navegador.irAlMenu();
     }
 
     private void gestionarTipoViaje() {
@@ -255,22 +271,19 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
     /**
      * Método puente que conecta la Vista 1 con la Vista 2 (RF-06, RF-07)
      */
+    /**
+     * Método puente que conecta la Vista 1 con la Vista 2 (RF-06, RF-07)
+     */
     private void avanzarSiguienteModulo(VueloDTO ida, VueloDTO regreso) {
         int adultos = (int) vista.getSpnAdultos().getValue();
         int ninos = (int) vista.getSpnNinos().getValue();
         int bebes = (int) vista.getSpnBebes().getValue();
 
         RegistroPasajerosFrame vista2 = new RegistroPasajerosFrame();
-        RegistroPasajerosController registroPasajerosController = new RegistroPasajerosController(vista2, modeloDAO, ida, regreso, adultos, ninos, bebes);
+        
+        // CAMBIO AQUÍ: Se añade 'navegador' como último parámetro
+        RegistroPasajerosController registroPasajerosController = new RegistroPasajerosController(vista2, modeloDAO, ida, regreso, adultos, ninos, bebes, navegador);
         
         vista.dispose(); // Cierra la Vista 1
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            BuscarYSeleccionarVueloFrame vista = new BuscarYSeleccionarVueloFrame();
-            VueloDAO dao = new VueloDAO();
-            new BuscarYSeleccionarVueloController(vista, dao);
-        });
     }
 }

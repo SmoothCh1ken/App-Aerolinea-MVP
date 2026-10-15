@@ -4,7 +4,7 @@ import modelo.modulo_consulta.*;
 import vista.modulo_consulta.BuscarYSeleccionarVueloFrame;
 import vista.modulo_consulta.PasajeroFormPanel;
 import vista.modulo_consulta.RegistroPasajerosFrame;
-
+import controlador.menu.Navegador;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -31,13 +31,15 @@ public class RegistroPasajerosController implements ActionListener {
     private final List<PasajeroFormPanel> listaPanelesPasajeros;
     private final List<Ciudad> listaCiudades;
     private final DecimalFormat formatoMoneda;
+    private Navegador navegador;
 
     public RegistroPasajerosController(
             RegistroPasajerosFrame vista, 
             VueloDAO modeloDAO, 
             VueloDTO vueloIda, 
             VueloDTO vueloRegreso, 
-            int adultos, int ninos, int bebes
+            int adultos, int ninos, int bebes,
+            Navegador navegador
     ) {
         this.vista = vista;
         this.modeloDAO = modeloDAO;
@@ -46,6 +48,7 @@ public class RegistroPasajerosController implements ActionListener {
         this.cantidadAdultos = adultos;
         this.cantidadNinos = ninos;
         this.cantidadBebes = bebes;
+        this.navegador = navegador;
 
         this.listaPanelesPasajeros = new ArrayList<>();
         this.listaCiudades = modeloDAO.obtenerTodasLasCiudades();
@@ -140,6 +143,7 @@ public class RegistroPasajerosController implements ActionListener {
         vista.getChkCompradorEsPasajero().addActionListener(e -> gestionarEstadoComprador());
         vista.getBtnAtras().addActionListener(this);
         vista.getBtnContinuar().addActionListener(this);
+        vista.addCierreListener(this::cancelarYVolverAlMenu);
     }
 
     private void gestionarEstadoComprador() {
@@ -167,15 +171,25 @@ public class RegistroPasajerosController implements ActionListener {
         }
     }
 
+    /** La X de la ventana: abandona el registro y regresa al menú principal. */
+    private void cancelarYVolverAlMenu() {
+        int confirm = JOptionPane.showConfirmDialog(vista,
+                "¿Desea cancelar el registro y volver al menú principal? Se perderán los datos ingresados.",
+                "Volver al menú", JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            vista.dispose();
+            navegador.irAlMenu();
+        }
+    }
+
     private void volverASeleccionVuelos() {
-        int confirm = JOptionPane.showConfirmDialog(vista, 
+        int confirm = JOptionPane.showConfirmDialog(vista,
                 "¿Desea regresar a la selección de vuelos? Se perderán los datos ingresados en este formulario.",
                 "Volver a Búsqueda", JOptionPane.YES_NO_OPTION);
-        
+
         if (confirm == JOptionPane.YES_OPTION) {
-            BuscarYSeleccionarVueloFrame frameVuelos = new BuscarYSeleccionarVueloFrame();
-            new BuscarYSeleccionarVueloController(frameVuelos, modeloDAO);
             vista.dispose();
+            navegador.iniciarReserva(); // El navegador se encarga de reabrir la Vista 1
         }
     }
 
@@ -249,7 +263,7 @@ public class RegistroPasajerosController implements ActionListener {
         // Transición definitiva hacia la Vista 3
         ConfirmacionReservaFrame vista3 = new ConfirmacionReservaFrame();
         ReservaDAO reservaDAO = new ReservaDAO();
-        ConfirmacionReservaController confirmacionReservaController = new ConfirmacionReservaController(vista3, reservaDAO, reserva);
+        ConfirmacionReservaController confirmacionReservaController = new ConfirmacionReservaController(vista3, reservaDAO, reserva, navegador);
         vista.dispose(); // Cierra la Vista 2
     }
 }

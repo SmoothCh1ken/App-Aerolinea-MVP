@@ -52,7 +52,7 @@ public class ResumenCompraFrame extends JFrame {
 
     public ResumenCompraFrame() {
         super("Pago de reserva - Resumen de compra");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(1150, 560);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(8, 8));
@@ -104,7 +104,6 @@ public class ResumenCompraFrame extends JFrame {
         sur.add(botones, BorderLayout.SOUTH);
         add(sur, BorderLayout.SOUTH);
 
-        btnCerrar.addActionListener(e -> dispose());
     }
 
     private JLabel negrita(String texto) {
@@ -176,4 +175,14 @@ public class ResumenCompraFrame extends JFrame {
     public void mostrarError(String texto) {
         JOptionPane.showMessageDialog(this, texto, "Error", JOptionPane.ERROR_MESSAGE);
     }
+
+    /** Para que la X de la ventana ejecute la acción indicada (ej. volver al menú). */
+    public void addCierreListener(Runnable accion) {
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { accion.run(); }
+        });
+    }
+
+    /** Botón "Cerrar": el controlador decide a dónde se vuelve (menú principal). */
+    public void addCerrarListener(ActionListener l) { btnCerrar.addActionListener(l); }
 }

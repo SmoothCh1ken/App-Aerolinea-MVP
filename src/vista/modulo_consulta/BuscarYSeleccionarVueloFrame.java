@@ -31,7 +31,7 @@ public class BuscarYSeleccionarVueloFrame extends JFrame {
     private JSpinner spnPrecioMaximo;
 
     // --- BOTONES Y TABLA (RF-03, RF-05) ---
-    private JButton btnConsultar, btnSeleccionarVuelo;
+    private JButton btnConsultar, btnSeleccionarVuelo, btnVolverMenu;
     private JTable tblVuelos;
     private DefaultTableModel modeloTabla;
     private JLabel lblEstadoBusqueda;
@@ -42,7 +42,7 @@ public class BuscarYSeleccionarVueloFrame extends JFrame {
 
     private void initComponents() {
         setTitle("Buscar y Seleccionar Vuelo");
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(1200, 750); 
         setLocationRelativeTo(null);
         setMinimumSize(new Dimension(1000, 600));
@@ -158,6 +158,9 @@ public class BuscarYSeleccionarVueloFrame extends JFrame {
         btnSeleccionarVuelo.setForeground(Color.WHITE);
         btnSeleccionarVuelo.setFont(new Font("Segoe UI", Font.BOLD, 14));
         btnSeleccionarVuelo.setEnabled(false); 
+        btnVolverMenu = new JButton("Volver al menú");
+        btnVolverMenu.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        panelInferior.add(btnVolverMenu);
         panelInferior.add(btnSeleccionarVuelo);
         
         panelPrincipal.add(panelInferior, BorderLayout.SOUTH);
@@ -184,7 +187,15 @@ public class BuscarYSeleccionarVueloFrame extends JFrame {
     
     public JButton getBtnConsultar() { return btnConsultar; }
     public JButton getBtnSeleccionarVuelo() { return btnSeleccionarVuelo; }
+    public JButton getBtnVolverMenu() { return btnVolverMenu; }
     public JTable getTblVuelos() { return tblVuelos; }
     public DefaultTableModel getModeloTabla() { return modeloTabla; }
     public JLabel getLblEstadoBusqueda() { return lblEstadoBusqueda; }
+
+    /** Para que la X de la ventana ejecute la acción indicada (ej. volver al menú). */
+    public void addCierreListener(Runnable accion) {
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { accion.run(); }
+        });
+    }
 }

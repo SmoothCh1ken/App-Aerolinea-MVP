@@ -31,7 +31,7 @@ public class ConfirmacionReservaFrame extends JFrame {
 
     private void initComponents() {
         setTitle("Confirmación de Reserva");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // Finaliza la app si se cierra aquí
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(600, 450);
         setLocationRelativeTo(null);
         setResizable(false);
@@ -127,4 +127,11 @@ public class ConfirmacionReservaFrame extends JFrame {
     public JLabel getLblTotalPagar() { return lblTotalPagar; }
     public JButton getBtnVolverInicio() { return btnVolverInicio; }
     public JButton getBtnProcederPago() { return btnProcederPago; }
+
+    /** Para que la X de la ventana ejecute la acción indicada (ej. volver al menú). */
+    public void addCierreListener(Runnable accion) {
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { accion.run(); }
+        });
+    }
 }
