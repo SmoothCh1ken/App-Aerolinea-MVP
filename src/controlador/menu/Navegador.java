@@ -9,4 +9,5 @@ public interface Navegador {
     void iniciarReserva();
     void iniciarPago(String pnr);
     void iniciarGestion(String pnr, String apellido);
+    void iniciarReportes();   // <-- AGREGAR
 }
