@@ -9,6 +9,7 @@ import modelo.modulo_consulta.VueloDAO;
 import vista.menu.MenuPrincipalFrame;
 import vista.modulo_cambios.GestionReservaFrame;
 import vista.modulo_consulta.BuscarYSeleccionarVueloFrame;
+import controlador.modulo_reportes.ReportesController;
 
 /**
  * Controlador central que implementa la navegación.
@@ -28,6 +29,7 @@ public class MenuPrincipalController implements Navegador {
         vista.addPagarListener(e -> iniciarPago(null));
         vista.addGestionarListener(e -> iniciarGestion(null, null));
         vista.addOperacionesListener(e -> abrirOperaciones());
+        vista.addReportesListener(e -> abrirReportes());
     }
 
     @Override
@@ -86,6 +88,21 @@ public class MenuPrincipalController implements Navegador {
             vista.setVisible(false);
             GestionReservaFrame frameOperaciones = new GestionReservaFrame(GestionReservaFrame.Modo.OPERACIONES, this::irAlMenu);
             frameOperaciones.setVisible(true);
+        } else if (pin != null) {
+            JOptionPane.showMessageDialog(vista, "PIN Incorrecto.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    @Override
+    public void iniciarReportes() {
+        vista.setVisible(false);
+        ReportesController.iniciar(this::irAlMenu);
+    }
+
+    private void abrirReportes() {
+        String pin = JOptionPane.showInputDialog(vista, "Ingrese el PIN de Aerolínea (1234):",
+                "Acceso Restringido", JOptionPane.WARNING_MESSAGE);
+        if ("1234".equals(pin)) {
+            iniciarReportes();
         } else if (pin != null) {
             JOptionPane.showMessageDialog(vista, "PIN Incorrecto.", "Error", JOptionPane.ERROR_MESSAGE);
         }

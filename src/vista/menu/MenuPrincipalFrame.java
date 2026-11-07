@@ -10,19 +10,20 @@ public class MenuPrincipalFrame extends JFrame {
     private final JButton btnPagar = new JButton("Pagar Reserva Existente");
     private final JButton btnGestionar = new JButton("Gestionar mi Reserva");
     private final JButton btnOperaciones = new JButton("Operaciones de Aerolínea (Admin)");
+    private final JButton btnReportes = new JButton("Reportes Gerenciales (Admin)");
 
     public MenuPrincipalFrame() {
         super("Aerolínea MVP - Menú Principal");
         
         // ¡Esta es la única ventana que debe matar el programa al cerrarse!
         setDefaultCloseOperation(EXIT_ON_CLOSE); 
-        setSize(400, 350);
+        setSize(400, 450);
         setLocationRelativeTo(null);
         setResizable(false);
         
         // Diseño de la interfaz
         setLayout(new BorderLayout(10, 10));
-        JPanel pnlCentro = new JPanel(new GridLayout(4, 1, 10, 10));
+        JPanel pnlCentro = new JPanel(new GridLayout(5, 1, 10, 10));
         pnlCentro.setBorder(BorderFactory.createEmptyBorder(20, 40, 20, 40));
 
         JLabel lblTitulo = new JLabel("Bienvenido a Aerolínea MVP", SwingConstants.CENTER);
@@ -34,6 +35,7 @@ public class MenuPrincipalFrame extends JFrame {
         pnlCentro.add(btnPagar);
         pnlCentro.add(btnGestionar);
         pnlCentro.add(btnOperaciones);
+        pnlCentro.add(btnReportes);
 
         add(pnlCentro, BorderLayout.CENTER);
         
@@ -48,4 +50,5 @@ public class MenuPrincipalFrame extends JFrame {
     public void addPagarListener(ActionListener l) { btnPagar.addActionListener(l); }
     public void addGestionarListener(ActionListener l) { btnGestionar.addActionListener(l); }
     public void addOperacionesListener(ActionListener l) { btnOperaciones.addActionListener(l); }
+    public void addReportesListener(ActionListener l) { btnReportes.addActionListener(l); }
 }
