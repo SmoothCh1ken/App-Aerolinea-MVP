@@ -36,7 +36,7 @@ public class App {
                  System.exit(1);
             }
             
-            
+           
             // 3. Iniciar el Menu Principal
             MenuPrincipalFrame menuVista = new MenuPrincipalFrame();
             new MenuPrincipalController(menuVista).irAlMenu();

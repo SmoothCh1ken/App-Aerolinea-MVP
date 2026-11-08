@@ -5,17 +5,18 @@ import org.apache.commons.mail.EmailAttachment;
 import org.apache.commons.mail.MultiPartEmail;
 import org.apache.commons.mail.SimpleEmail;
 import javax.mail.util.ByteArrayDataSource;
+import java.util.List;
 
 /**
  * Punto de integración para el envío real de correos utilizando Apache Commons Email.
  */
 public class ServicioCorreo {
     
-    // Configuración del servidor (Quemada temporalmente para la prueba de concepto)
+    // Configuración del servidor
     private static final String SMTP_HOST = "smtp.gmail.com";
     private static final int SMTP_PORT = 587;
     private static final String CORREO_ORIGEN = "luciano.bascur28@gmail.com"; 
-    private static final String PASSWORD_APP = "hezntktejpildwls";
+    private static final String PASSWORD_APP = "hezntktejpildwls"; // <-- RECUERDA PONER TU CLAVE
 
     private ServicioCorreo() { }
 
@@ -49,11 +50,37 @@ public class ServicioCorreo {
     }
 
     /**
-     * NUEVO: Envia un correo con un archivo PDF adjunto desde la Memoria RAM.
+     * Envia un correo con un archivo PDF adjunto desde la Memoria RAM.
      */
     public static boolean enviarConAdjunto(String destino, String asunto, String mensaje, byte[] pdfEnMemoria, String nombreArchivoPDF) {
         try {
-            System.out.println("[SISTEMA] Preparando correo con tiquete adjunto para: " + destino + "...");
+            MultiPartEmail email = new MultiPartEmail();
+            configurarServidor(email);
+            
+            email.addTo(destino);
+            email.setSubject(asunto);
+            email.setMsg(mensaje);
+            
+            ByteArrayDataSource dataSource = new ByteArrayDataSource(pdfEnMemoria, "application/pdf");
+            email.attach(dataSource, nombreArchivoPDF, "Documento adjunto", EmailAttachment.ATTACHMENT);
+            
+            email.send();
+            return true;
+            
+        } catch (Exception e) {
+            System.err.println("[SISTEMA - ERROR DE CORREO] No se pudo enviar el correo con adjunto.");
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * NUEVO: Envia un correo con MÚLTIPLES archivos PDF adjuntos desde la Memoria RAM.
+     * Ideal para reservas con varios pasajeros.
+     */
+    public static boolean enviarMultiplesAdjuntos(String destino, String asunto, String mensaje, List<byte[]> pdfs, List<String> nombresArchivos) {
+        try {
+            System.out.println("[SISTEMA] Preparando correo con " + pdfs.size() + " tiquetes adjuntos para: " + destino + "...");
             
             MultiPartEmail email = new MultiPartEmail();
             configurarServidor(email);
@@ -62,18 +89,18 @@ public class ServicioCorreo {
             email.setSubject(asunto);
             email.setMsg(mensaje);
             
-            // 1. Convertir nuestro arreglo de bytes (RAM) a una fuente de datos compatible con adjuntos
-            ByteArrayDataSource dataSource = new ByteArrayDataSource(pdfEnMemoria, "application/pdf");
-            
-            // 2. Adjuntarlo al correo
-            email.attach(dataSource, nombreArchivoPDF, "Documento adjunto", EmailAttachment.ATTACHMENT);
+            // Iterar sobre las listas para adjuntar cada PDF generado
+            for (int i = 0; i < pdfs.size(); i++) {
+                ByteArrayDataSource dataSource = new ByteArrayDataSource(pdfs.get(i), "application/pdf");
+                email.attach(dataSource, nombresArchivos.get(i), "Tiquete de abordaje", EmailAttachment.ATTACHMENT);
+            }
             
             email.send();
-            System.out.println("[SISTEMA] ¡Correo con tiquete adjunto enviado exitosamente a " + destino + "!");
+            System.out.println("[SISTEMA] ¡Correo con tiquetes enviado exitosamente a " + destino + "!");
             return true;
             
         } catch (Exception e) {
-            System.err.println("[SISTEMA - ERROR DE CORREO] No se pudo enviar el correo con adjunto.");
+            System.err.println("[SISTEMA - ERROR DE CORREO] No se pudo enviar el correo con múltiples adjuntos.");
             e.printStackTrace();
             return false;
         }
