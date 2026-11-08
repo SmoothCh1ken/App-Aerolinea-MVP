@@ -31,7 +31,7 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
     private boolean buscandoRegreso = false;
     private VueloDTO vueloIdaSeleccionado = null;
     private List<VueloDTO> ultimaListaVuelosConsultada = null;
-    private int plazasRequeridas = 1; // adultos + niños (los menores de 2 años no ocupan asiento)
+    private int plazasRequeridas = 1; // cupos que necesita el grupo (los bebés no ocupan asiento)
 
     public BuscarYSeleccionarVueloController(BuscarYSeleccionarVueloFrame vista, VueloDAO modeloDAO, Navegador navegador) {
         this.vista = vista;
@@ -166,7 +166,7 @@ public class BuscarYSeleccionarVueloController implements ActionListener {
         int adultos = (int) vista.getSpnAdultos().getValue();
         int ninos = (int) vista.getSpnNinos().getValue();
         int bebes = (int) vista.getSpnBebes().getValue();
-        plazasRequeridas = adultos + ninos;
+        plazasRequeridas = modeloDAO.calcularPlazasRequeridas(adultos, ninos, bebes);
 
         String ordenamiento = (String) vista.getCmbOrdenamiento().getSelectedItem();
         boolean soloDirectos = vista.getChkSoloDirectos().isSelected();

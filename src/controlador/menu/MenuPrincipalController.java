@@ -2,6 +2,9 @@ package controlador.menu;
 
 import controlador.modulo_consulta.BuscarYSeleccionarVueloController;
 import controlador.modulo_pago.ResumenCompraController;
+import controlador.modulo_seguridad.GuardiaAcceso;
+import controlador.modulo_seguridad.PanelSeguridadController;
+import modelo.modulo_seguridad.Modulo;
 import java.sql.SQLException;
 import modelo.modulo_pago.PagoDAO;
 import javax.swing.JOptionPane;
@@ -22,6 +25,7 @@ public class MenuPrincipalController implements Navegador {
     public MenuPrincipalController(MenuPrincipalFrame vista) {
         this.vista = vista;
         configurarEventos();
+        GuardiaAcceso.instalar(this::irAlMenu); // seguridad: si la sesión expira, vuelve al menú
     }
 
     private void configurarEventos() {
@@ -30,6 +34,7 @@ public class MenuPrincipalController implements Navegador {
         vista.addGestionarListener(e -> iniciarGestion(null, null));
         vista.addOperacionesListener(e -> abrirOperaciones());
         vista.addReportesListener(e -> abrirReportes());
+        vista.addSeguridadListener(e -> iniciarSeguridad());
     }
 
     @Override
@@ -80,18 +85,28 @@ public class MenuPrincipalController implements Navegador {
         frameGestion.setVisible(true);
     }
     
-    private void abrirOperaciones() {
-        // Bloqueo de seguridad simple para separar el rol (RF-30/RF-34)
-        String pin = JOptionPane.showInputDialog(vista, "Ingrese el PIN de Aerolínea (1234):", "Acceso Restringido", JOptionPane.WARNING_MESSAGE);
-        if ("1234".equals(pin)) {
-            // Modo operaciones: gestión de vuelos (cancelar / reprogramar), sin la pestaña del cliente
-            vista.setVisible(false);
-            GestionReservaFrame frameOperaciones = new GestionReservaFrame(GestionReservaFrame.Modo.OPERACIONES, this::irAlMenu);
-            frameOperaciones.setVisible(true);
-        } else if (pin != null) {
-            JOptionPane.showMessageDialog(vista, "PIN Incorrecto.", "Error", JOptionPane.ERROR_MESSAGE);
+    @Override
+    public void iniciarSeguridad() {
+        // Inicio de sesión con segundo factor (si aún no hay sesión) y panel de seguridad
+        if (!GuardiaAcceso.autenticar(vista)) {
+            return;
         }
+        vista.setVisible(false);
+        PanelSeguridadController.iniciar(this::irAlMenu);
     }
+
+    private void abrirOperaciones() {
+        // RF-27: solo entra el funcionario cuyo rol tiene acceso a Operaciones (reemplaza el PIN 1234)
+        if (!GuardiaAcceso.autorizar(Modulo.OPERACIONES, vista)) {
+            return;
+        }
+        vista.setVisible(false);
+        GestionReservaFrame frameOperaciones = new GestionReservaFrame(GestionReservaFrame.Modo.OPERACIONES, this::irAlMenu);
+        GuardiaAcceso.registrar(frameOperaciones); // se cierra solo si la sesión expira por inactividad
+        frameOperaciones.setVisible(true);
+
+    }
+    
     @Override
     public void iniciarReportes() {
         vista.setVisible(false);
@@ -99,12 +114,10 @@ public class MenuPrincipalController implements Navegador {
     }
 
     private void abrirReportes() {
-        String pin = JOptionPane.showInputDialog(vista, "Ingrese el PIN de Aerolínea (1234):",
-                "Acceso Restringido", JOptionPane.WARNING_MESSAGE);
-        if ("1234".equals(pin)) {
-            iniciarReportes();
-        } else if (pin != null) {
-            JOptionPane.showMessageDialog(vista, "PIN Incorrecto.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
+    // RF-27: solo entra el funcionario cuyo rol tiene acceso a Reportes
+    if (!GuardiaAcceso.autorizar(Modulo.REPORTES, vista)) {
+        return;
+    }
+    iniciarReportes();
     }
 }

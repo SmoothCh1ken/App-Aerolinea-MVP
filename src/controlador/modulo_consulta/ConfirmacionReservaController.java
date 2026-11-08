@@ -13,7 +13,7 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Random;
+import java.security.SecureRandom;
 
 /**
  * Controlador para la confirmación de reserva (RF-08).
@@ -28,6 +28,8 @@ public class ConfirmacionReservaController implements ActionListener {
     private final DecimalFormat formatoMoneda;
     private final SimpleDateFormat formatoFecha;
     private Navegador navegador; // <--- NUEVO ATRIBUTO
+    private static final int MAX_INTENTOS_CODIGO = 5; // veces que se reintenta si el código ya existía
+    private static final SecureRandom ALEATORIO = new SecureRandom();
 
     public ConfirmacionReservaController(ConfirmacionReservaFrame vista, ReservaDAO modeloDAO, ReservaDTO reservaFinal, Navegador navegador) { // <--- NUEVO PARÁMETRO
         this.vista = vista;
@@ -53,12 +55,18 @@ public class ConfirmacionReservaController implements ActionListener {
      * Método principal que ejecuta la lógica de negocio final.
      */
     private void procesarYGuardarReserva() {
-        // 1. Generar Código PNR (Ej: A7X9P2)
-        String pnrGenerado = generarCodigoPNR();
-        reservaFinal.setCodigoReserva(pnrGenerado);
-
-        // 2. Ejecutar transacción en la base de datos
-        boolean guardadoExitoso = modeloDAO.registrarReservaTransaccional(reservaFinal);
+        // 1 y 2. Generar el código PNR (Ej: A7X9P2) y guardar la reserva en una transacción.
+        // Si el código ya existía (colisión aleatoria) se genera otro y se reintenta.
+        boolean guardadoExitoso = false;
+        String pnrGenerado = null;
+        for (int intento = 1; intento <= MAX_INTENTOS_CODIGO && !guardadoExitoso; intento++) {
+            pnrGenerado = generarCodigoPNR();
+            reservaFinal.setCodigoReserva(pnrGenerado);
+            guardadoExitoso = modeloDAO.registrarReservaTransaccional(reservaFinal);
+            if (!guardadoExitoso && !modeloDAO.isCodigoDuplicado()) {
+                break; // otro tipo de error (sin cupos, base de datos...): reintentar no sirve
+            }
+        }
 
         if (guardadoExitoso) {
             // 3. Si fue exitoso, calcular la fecha de expiración para la vista (24 horas)
@@ -75,11 +83,12 @@ public class ConfirmacionReservaController implements ActionListener {
             vista.setVisible(true);
         } else {
             // Error en base de datos (Rollback ejecutado)
-            String motivo = modeloDAO.getUltimoError(); // p. ej. "ya no hay cupos suficientes"
+            String motivo = modeloDAO.getUltimoError();
             if (motivo != null) {
-                JOptionPane.showMessageDialog(null, motivo, "Reserva no disponible", JOptionPane.WARNING_MESSAGE);
+                // Falla de negocio (por ejemplo, se agotaron los cupos mientras llenaba el formulario)
+                JOptionPane.showMessageDialog(null, motivo, "No se pudo crear la reserva", JOptionPane.WARNING_MESSAGE);
             } else {
-                JOptionPane.showMessageDialog(null, 
+                JOptionPane.showMessageDialog(null,
                         "Ocurrió un error crítico al guardar la reserva en la base de datos.\nLa transacción ha sido cancelada para proteger la integridad de los datos.",
                         "Error de Transacción", JOptionPane.ERROR_MESSAGE);
             }
@@ -91,13 +100,13 @@ public class ConfirmacionReservaController implements ActionListener {
 
     /**
      * Genera un código alfanumérico aleatorio de 6 caracteres en mayúsculas.
+     * Usa SecureRandom: el código junto con el apellido sirve para consultar la reserva.
      */
     private String generarCodigoPNR() {
         String caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         StringBuilder pnr = new StringBuilder();
-        Random rnd = new Random();
         for (int i = 0; i < 6; i++) {
-            pnr.append(caracteres.charAt(rnd.nextInt(caracteres.length())));
+            pnr.append(caracteres.charAt(ALEATORIO.nextInt(caracteres.length())));
         }
         return pnr.toString();
     }

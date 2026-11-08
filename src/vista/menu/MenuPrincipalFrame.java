@@ -11,19 +11,20 @@ public class MenuPrincipalFrame extends JFrame {
     private final JButton btnGestionar = new JButton("Gestionar mi Reserva");
     private final JButton btnOperaciones = new JButton("Operaciones de Aerolínea (Admin)");
     private final JButton btnReportes = new JButton("Reportes Gerenciales (Admin)");
+    private final JButton btnSeguridad = new JButton("Seguridad y Usuarios (Admin)");
 
     public MenuPrincipalFrame() {
         super("Aerolínea MVP - Menú Principal");
         
         // ¡Esta es la única ventana que debe matar el programa al cerrarse!
         setDefaultCloseOperation(EXIT_ON_CLOSE); 
-        setSize(400, 450);
+        setSize(400, 520);
         setLocationRelativeTo(null);
         setResizable(false);
         
         // Diseño de la interfaz
         setLayout(new BorderLayout(10, 10));
-        JPanel pnlCentro = new JPanel(new GridLayout(5, 1, 10, 10));
+        JPanel pnlCentro = new JPanel(new GridLayout(6, 1, 10, 10));
         pnlCentro.setBorder(BorderFactory.createEmptyBorder(20, 40, 20, 40));
 
         JLabel lblTitulo = new JLabel("Bienvenido a Aerolínea MVP", SwingConstants.CENTER);
@@ -36,6 +37,7 @@ public class MenuPrincipalFrame extends JFrame {
         pnlCentro.add(btnGestionar);
         pnlCentro.add(btnOperaciones);
         pnlCentro.add(btnReportes);
+        pnlCentro.add(btnSeguridad);
 
         add(pnlCentro, BorderLayout.CENTER);
         
@@ -43,6 +45,14 @@ public class MenuPrincipalFrame extends JFrame {
         btnOperaciones.setBackground(new Color(200, 50, 50));
         btnOperaciones.setForeground(Color.WHITE);
         btnOperaciones.setFocusPainted(false);
+        
+        btnReportes.setBackground(new Color(200, 50, 50));
+        btnReportes.setForeground(Color.WHITE);
+        btnReportes.setFocusPainted(false);
+        
+        btnSeguridad.setBackground(new Color(200, 50, 50));
+        btnSeguridad.setForeground(Color.WHITE);
+        btnSeguridad.setFocusPainted(false);
     }
 
     // Métodos para que el controlador escuche los clics
@@ -51,4 +61,5 @@ public class MenuPrincipalFrame extends JFrame {
     public void addGestionarListener(ActionListener l) { btnGestionar.addActionListener(l); }
     public void addOperacionesListener(ActionListener l) { btnOperaciones.addActionListener(l); }
     public void addReportesListener(ActionListener l) { btnReportes.addActionListener(l); }
+    public void addSeguridadListener(ActionListener l) { btnSeguridad.addActionListener(l); }
 }
