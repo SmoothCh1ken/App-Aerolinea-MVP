@@ -1,5 +1,7 @@
 package controlador.modulo_reportes;
 
+import modelo.modulo_reportes.ExportadorExcel;
+import modelo.modulo_reportes.ExportadorPDF;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -223,19 +225,34 @@ public class ReportesController {
         return filas;
     }
 
-    private void exportar() {
+   private void exportar() {
         if (ultimoReporte == null) {
             vista.mostrarAdvertencia("Primero genere un reporte.");
             return;
         }
-        String nombre = "reporte_" + ultimoReporte.getTitulo().toLowerCase(CO).replaceAll("[^a-z0-9]+", "_") + ".csv";
-        File archivo = vista.elegirArchivoCsv(nombre);
+        
+        // Generar un nombre base sugerido limpio
+        String nombreBase = "reporte_" + ultimoReporte.getTitulo().toLowerCase(CO).replaceAll("[^a-z0-9]+", "_");
+        
+        // Llamar al nuevo selector que soporta Excel, PDF y CSV
+        File archivo = vista.elegirArchivoExportacion(nombreBase);
         if (archivo == null) return;
+
         try {
-            ExportadorCSV.exportar(archivo, ultimoReporte);
-            vista.mostrarInfo("Reporte guardado en:\n" + archivo.getAbsolutePath());
+            String nombreArchivo = archivo.getName().toLowerCase(CO);
+            
+            if (nombreArchivo.endsWith(".pdf")) {
+                ExportadorPDF.exportar(archivo, ultimoReporte);
+            } else if (nombreArchivo.endsWith(".xlsx")) {
+                ExportadorExcel.exportar(archivo, ultimoReporte);
+            } else {
+                ExportadorCSV.exportar(archivo, ultimoReporte);
+            }
+            
+            vista.mostrarInfo("Reporte exportado exitosamente en:\n" + archivo.getAbsolutePath());
+            
         } catch (IOException ex) {
-            vista.mostrarError("No se pudo guardar el archivo: " + ex.getMessage());
+            vista.mostrarError("No se pudo exportar el archivo: " + ex.getMessage());
         }
     }
 
