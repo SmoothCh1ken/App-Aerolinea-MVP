@@ -39,7 +39,29 @@ public class NotificacionDAO {
         return enviado;
     }
 
-    private String construirMensaje(ResumenCompra r, List<String> tiquetes) {
+    /**
+     * Registra en la BD una confirmación cuyo correo (con los PDF adjuntos) ya fue
+     * enviado por otro componente; no vuelve a enviar nada.
+     */
+    public void registrarResultado(Connection con, ResumenCompra r, List<String> tiquetes,
+                                   boolean enviado) throws SQLException {
+        String correo = r.getCorreoComprador();
+        boolean correoValido = correo != null && correo.contains("@");
+        String sql = "INSERT INTO Notificacion (id_reserva, id_persona, id_vuelo, tipo, asunto, "
+                   + "mensaje, correo_destino, estado) VALUES (?, ?, ?, 'Confirmaci\u00f3n de compra', ?, ?, ?, ?)";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, r.getIdReserva());
+            ps.setInt(2, r.getIdComprador());
+            ps.setNull(3, Types.INTEGER);
+            ps.setString(4, "Confirmación de compra " + r.getCodigoReserva());
+            ps.setString(5, construirMensaje(r, tiquetes));
+            ps.setString(6, correoValido ? correo : "");
+            ps.setString(7, enviado ? "Enviada" : "Fallida");
+            ps.executeUpdate();
+        }
+    }
+
+    String construirMensaje(ResumenCompra r, List<String> tiquetes) {
         NumberFormat moneda = NumberFormat.getInstance(Locale.forLanguageTag("es-CO"));
         StringBuilder sb = new StringBuilder();
         sb.append("Hola ").append(r.getNombreComprador()).append(",\n");

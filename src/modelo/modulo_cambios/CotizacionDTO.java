@@ -6,6 +6,12 @@ import java.math.BigDecimal;
 public class CotizacionDTO {
     public String motivo;
 
+    /**
+     * Frase que explica por qué no hay cargo/penalidad cuando fue la AEROLÍNEA quien modificó
+     * el vuelo (reprogramado o cancelado). Es null cuando el trámite es voluntario sin esa causa.
+     */
+    public String avisoAerolinea;
+
     // Cambio: neto > 0 = valor a pagar; neto < 0 = saldo a favor
     public BigDecimal cargo = BigDecimal.ZERO;
     public BigDecimal diferencia = BigDecimal.ZERO;

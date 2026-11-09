@@ -6,6 +6,7 @@ import modelo.modulo_cambios.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.Cursor;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.time.format.DateTimeFormatter;
@@ -224,19 +225,26 @@ public class GestionReservaFrame extends JFrame {
                 }
             }
 
-            // 5. Aplicar el cambio
-            int idCambio = controlador.cambiar(reserva, sentido, opciones.get(posicion));
-            refrescarReserva();
+            // 5. Aplicar el cambio (en segundo plano: incluye el envío de correos)
+            final String sentidoElegido = sentido;
+            final int pos = posicion;
+            final OpcionCambioDTO opcionElegida = opciones.get(pos);
+            final CotizacionDTO elegida = cotizaciones[pos];
+            ejecutarAsync(() -> controlador.cambiar(reserva, sentidoElegido, opcionElegida), resultado -> {
+                int idCambio = resultado.idCambio;
+                refrescarReserva();
 
-            CotizacionDTO elegida = cotizaciones[posicion];
-            if (elegida.neto.signum() > 0) {
-                mostrarInfo("Cambio #" + idCambio + " registrado. Queda pendiente el pago de $" + elegida.neto + ".");
-            } else if (elegida.neto.signum() < 0) {
-                mostrarInfo("Cambio #" + idCambio + " aplicado. Saldo a favor: $" + elegida.neto.negate()
-                        + " (reembolso solicitado).");
-            } else {
-                mostrarInfo("Cambio #" + idCambio + " aplicado.");
-            }
+                String correos = textoCorreos(resultado.correos);
+                if (elegida.neto.signum() > 0) {
+                    mostrarInfo("Cambio #" + idCambio + " registrado. Queda pendiente el pago de $" + elegida.neto + "."
+                            + correos);
+                } else if (elegida.neto.signum() < 0) {
+                    mostrarInfo("Cambio #" + idCambio + " aplicado. Saldo a favor: $" + elegida.neto.negate()
+                            + " (reembolso solicitado)." + correos);
+                } else {
+                    mostrarInfo("Cambio #" + idCambio + " aplicado." + correos);
+                }
+            });
         } catch (Exception ex) {
             mostrarError(ex);
         }
@@ -248,7 +256,8 @@ public class GestionReservaFrame extends JFrame {
             CotizacionDTO q = controlador.cotizarReembolso(reserva);
 
             int respuesta = JOptionPane.showConfirmDialog(this,
-                    "Se cancelará la reserva " + reserva.codigo + " (" + q.motivo + ").\n"
+                    "Se cancelará la reserva " + reserva.codigo + " por solicitud suya.\n"
+                  + (q.avisoAerolinea != null ? q.avisoAerolinea + "\n" : "")
                   + "Valor de los tiquetes: $" + q.base + "\n"
                   + "Penalidad: $" + q.penalidad + "\n"
                   + "Reembolso estimado: $" + q.reembolso + "\n"
@@ -257,9 +266,11 @@ public class GestionReservaFrame extends JFrame {
                 return;
             }
 
-            controlador.cancelar(reserva);
-            refrescarReserva();
-            mostrarInfo("Cancelación registrada. La solicitud de reembolso quedó en estado 'Solicitado'.");
+            ejecutarAsync(() -> controlador.cancelar(reserva), correos -> {
+                refrescarReserva();
+                mostrarInfo("Cancelación registrada. La solicitud de reembolso quedó en estado 'Solicitado'."
+                        + textoCorreos(correos));
+            });
         } catch (Exception ex) {
             mostrarError(ex);
         }
@@ -347,9 +358,11 @@ public class GestionReservaFrame extends JFrame {
                 return;
             }
             int horas = Integer.parseInt(texto.trim());
-            int notificados = controlador.reprogramarVuelo(v, horas);
-            cargarVuelos();
-            mostrarInfo("Vuelo reprogramado. Pasajeros notificados: " + notificados);
+            ejecutarAsync(() -> controlador.reprogramarVuelo(v, horas), notificados -> {
+                cargarVuelos();
+                mostrarInfo("Vuelo reprogramado. Reservas notificadas (un correo al comprador de cada una): " + notificados.total
+                        + textoCorreos(notificados));
+            });
         } catch (NumberFormatException ex) {
             mostrarInfo("Ingrese un número entero de horas.");
         } catch (Exception ex) {
@@ -368,9 +381,11 @@ public class GestionReservaFrame extends JFrame {
             if (respuesta != JOptionPane.YES_OPTION) {
                 return;
             }
-            int notificados = controlador.cancelarVuelo(v);
-            cargarVuelos();
-            mostrarInfo("Vuelo cancelado. Pasajeros notificados: " + notificados);
+            ejecutarAsync(() -> controlador.cancelarVuelo(v), notificados -> {
+                cargarVuelos();
+                mostrarInfo("Vuelo cancelado. Reservas notificadas (un correo al comprador de cada una): " + notificados.total
+                        + textoCorreos(notificados));
+            });
         } catch (Exception ex) {
             mostrarError(ex);
         }
@@ -383,6 +398,62 @@ public class GestionReservaFrame extends JFrame {
         if (reserva == null) {
             throw new Exception("Primero consulte una reserva con su código y apellido.");
         }
+    }
+
+    // ---------- ejecución en segundo plano (la ventana no se congela mientras salen los correos) ----------
+
+    private boolean ocupado = false;   // evita lanzar dos operaciones a la vez
+
+    @FunctionalInterface
+    private interface Tarea<T> {
+        T ejecutar() throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface AlTerminar<T> {
+        void ejecutar(T resultado) throws Exception;
+    }
+
+    /** Corre la tarea fuera del hilo de Swing y, al terminar, ejecuta "alTerminar" en el hilo de Swing. */
+    private <T> void ejecutarAsync(Tarea<T> tarea, AlTerminar<T> alTerminar) {
+        if (ocupado) {
+            mostrarInfo("Hay una operación en curso (se están enviando los correos). Espere un momento.");
+            return;
+        }
+        ocupado = true;
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        new SwingWorker<T, Void>() {
+            @Override
+            protected T doInBackground() throws Exception {
+                return tarea.ejecutar();
+            }
+
+            @Override
+            protected void done() {
+                ocupado = false;
+                setCursor(Cursor.getDefaultCursor());
+                try {
+                    alTerminar.ejecutar(get());
+                } catch (java.util.concurrent.ExecutionException ex) {
+                    Throwable causa = ex.getCause();
+                    mostrarError(causa instanceof Exception ? (Exception) causa : new Exception(causa));
+                } catch (Exception ex) {
+                    mostrarError(ex);
+                }
+            }
+        }.execute();
+    }
+
+    /** Texto con el resultado del envío de correos para agregar a los mensajes de la pantalla. */
+    private String textoCorreos(ResumenNotificacion n) {
+        if (n.total == 0) {
+            return "";
+        }
+        String texto = "\nCorreos enviados: " + n.enviados + " de " + n.total + ".";
+        if (n.fallidos() > 0) {
+            texto += "\nAlgunos correos no se pudieron enviar; quedaron registrados como 'Fallida' en el historial.";
+        }
+        return texto;
     }
 
     private void mostrarInfo(String mensaje) {

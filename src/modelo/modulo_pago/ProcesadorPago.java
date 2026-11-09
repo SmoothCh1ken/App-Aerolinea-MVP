@@ -5,30 +5,26 @@ import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Lógica de negocio del pago (RF-18, RF-19 y RF-20).
- *
- * Flujo (todo dentro de UNA transacción):
- *  1. Bloquea la reserva y verifica que siga "Pendiente de pago" y dentro del plazo.
- *  2. Evalúa el pago según el medio (bono y millas se validan contra la BD;
- *     PSE, tarjeta y transferencia usan una pasarela SIMULADA).
- *  3. Registra el pago con su estado.
- *  4. Si fue "Aprobado": confirma la reserva, emite los tiquetes y registra el correo.
- *     Si no: la reserva queda bloqueada ("Pendiente de pago") hasta fecha_expiracion;
- *     cuando vence, liberarReservasExpiradas() libera los cupos.
+ * Actualizada para generación y envío de PDF.
  */
 public class ProcesadorPago {
 
-    /** Equivalencia usada para pagar con millas: 1 milla = $30 COP (ajustable). */
     public static final BigDecimal VALOR_MILLA_COP = new BigDecimal("30");
 
     private final PagoDAO pagoDAO = new PagoDAO();
     private final TiqueteDAO tiqueteDAO = new TiqueteDAO();
     private final NotificacionDAO notificacionDAO = new NotificacionDAO();
+    
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    /** Millas necesarias para cubrir un valor (se redondea hacia arriba). */
     public static int millasNecesarias(BigDecimal total) {
         return total.divide(VALOR_MILLA_COP, 0, RoundingMode.UP).intValue();
     }
@@ -36,6 +32,7 @@ public class ProcesadorPago {
     public ResultadoPago procesar(ResumenCompra resumen, SolicitudPago solicitud) {
         ResultadoPago res = new ResultadoPago();
         Connection con = null;
+        List<TiqueteDAO.DatosTiquete> datosPdf = null; // se llena solo si el pago es aprobado
         try {
             con = DaoUtil.abrir();
             con.setAutoCommit(false);
@@ -110,7 +107,7 @@ public class ProcesadorPago {
                     }
                     break;
                 }
-                default: { // PSE, TARJETA, TRANSFERENCIA -> pasarela simulada
+                default: { 
                     estado = solicitud.getResultadoSimulado() == null ? Pago.APROBADO : solicitud.getResultadoSimulado();
                     mensaje = mensajeDePasarela(estado);
                     String sufijo = String.valueOf(System.currentTimeMillis() % 100000000L);
@@ -138,16 +135,24 @@ public class ProcesadorPago {
                 pagoDAO.confirmarReserva(con, resumen.getIdReserva());
                 List<String> tiquetes = tiqueteDAO.emitirTiquetes(con, resumen.getIdReserva(), resumen.getCodigoReserva());
                 res.getTiquetes().addAll(tiquetes);
-                res.setCorreoEnviado(notificacionDAO.registrarConfirmacion(con, resumen, tiquetes));
+                
+                // Datos reales (documento, clase, vuelo) para los PDF; el correo se envía tras el commit
+                datosPdf = tiqueteDAO.consultarDatosParaPDF(con, resumen.getIdReserva());
+
                 res.setReservaConfirmada(true);
             } else {
-                // CA-23: la reserva sigue bloqueada hasta fecha_expiracion
                 res.setReservaConfirmada(false);
                 res.setPuedeReintentar(!Pago.PENDIENTE.equals(estado));
                 res.setMensaje(mensaje + " La reserva permanece bloqueada hasta "
                         + resumen.getFechaExpiracion().toLocalDateTime().toString().replace('T', ' ') + ".");
             }
             con.commit();
+
+            // Solo con el pago ya confirmado en BD: PDF + correo + registro de la notificación.
+            // Un fallo aquí NUNCA revierte el pago.
+            if (Pago.APROBADO.equals(estado)) {
+                res.setCorreoEnviado(enviarYRegistrarCorreo(resumen, res.getTiquetes(), datosPdf));
+            }
             return res;
 
         } catch (SQLException e) {
@@ -158,6 +163,56 @@ public class ProcesadorPago {
         } finally {
             DaoUtil.cerrar(con);
         }
+    }
+
+    /**
+     * Genera un PDF por pasajero y tramo (en RAM), envía UN solo correo con todos los
+     * adjuntos y deja constancia en la tabla Notificacion con el resultado real.
+     */
+    private boolean enviarYRegistrarCorreo(ResumenCompra resumen, List<String> tiquetes,
+                                           List<TiqueteDAO.DatosTiquete> datos) {
+        boolean enviado = false;
+        try {
+            String correo = resumen.getCorreoComprador();
+            if (correo != null && correo.contains("@") && datos != null && !datos.isEmpty()) {
+                List<byte[]> pdfs = new ArrayList<>();
+                List<String> nombres = new ArrayList<>();
+                // Un PDF por tiquete (pasajero) con una página por tramo: Ida y Regreso
+                Map<String, List<TiqueteDAO.DatosTiquete>> porTiquete = new LinkedHashMap<>();
+                for (TiqueteDAO.DatosTiquete d : datos) {
+                    porTiquete.computeIfAbsent(d.numeroTiquete, k -> new ArrayList<>()).add(d);
+                }
+                for (Map.Entry<String, List<TiqueteDAO.DatosTiquete>> e : porTiquete.entrySet()) {
+                    TiqueteDAO.DatosTiquete p = e.getValue().get(0);
+                    List<GeneradorTiquetePDF.Tramo> tramos = new ArrayList<>();
+                    for (TiqueteDAO.DatosTiquete d : e.getValue()) {
+                        tramos.add(new GeneradorTiquetePDF.Tramo(d.sentido, d.numeroVuelo, d.origen,
+                                d.destino, d.salida.toLocalDateTime().format(FORMATO_FECHA), d.clase));
+                    }
+                    pdfs.add(GeneradorTiquetePDF.generar(resumen.getCodigoReserva(), p.numeroTiquete,
+                            p.pasajero, p.documento, tramos));
+                    nombres.add("Tiquete_" + p.numeroTiquete + ".pdf");
+                }
+                String asunto = "Confirmación de compra " + resumen.getCodigoReserva();
+                String cuerpo = notificacionDAO.construirMensaje(resumen, tiquetes)
+                        + "\n\nAdjuntamos tus tiquetes de abordaje en PDF (un archivo por pasajero, con ida y regreso). ¡Feliz viaje!";
+                enviado = ServicioCorreo.enviarMultiplesAdjuntos(correo, asunto, cuerpo, pdfs, nombres);
+            }
+        } catch (Exception e) {
+            System.err.println("[Procesador Pago] Error generando/enviando tiquetes PDF: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        Connection con2 = null;
+        try {
+            con2 = DaoUtil.abrir();
+            notificacionDAO.registrarResultado(con2, resumen, tiquetes, enviado);
+        } catch (SQLException e) {
+            System.err.println("[Procesador Pago] No se pudo registrar la notificación: " + e.getMessage());
+        } finally {
+            DaoUtil.cerrar(con2);
+        }
+        return enviado;
     }
 
     private String mensajeDePasarela(String estado) {

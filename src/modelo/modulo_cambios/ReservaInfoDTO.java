@@ -3,7 +3,7 @@ package modelo.modulo_cambios;
 import java.util.ArrayList;
 
 public class ReservaInfoDTO {
-    public int idReserva;
+    public int idReserva, idComprador;
     public String codigo, estado, titular, apellido, correo;
     public ArrayList<TramoInfoDTO> tramos = new ArrayList<>();
 

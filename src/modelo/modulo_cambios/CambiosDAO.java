@@ -26,7 +26,7 @@ public class CambiosDAO {
 
     /** Busca la reserva por código y apellido del titular. Devuelve null si no existe. */
     public ReservaInfoDTO buscarReserva(String codigo, String apellido) throws SQLException {
-        String sql = "SELECT r.id_reserva, r.codigo_reserva, r.estado, c.nombres, c.apellidos, c.correo "
+        String sql = "SELECT r.id_reserva, r.codigo_reserva, r.estado, c.id_persona, c.nombres, c.apellidos, c.correo "
                    + "FROM Reserva r "
                    + "JOIN Persona c ON c.id_persona = r.id_comprador "
                    + "WHERE r.codigo_reserva = ? AND LOWER(c.apellidos) = LOWER(?)";
@@ -40,6 +40,7 @@ public class CambiosDAO {
             if (rs.next()) {
                 reserva = new ReservaInfoDTO();
                 reserva.idReserva = rs.getInt("id_reserva");
+                reserva.idComprador = rs.getInt("id_persona");
                 reserva.codigo = rs.getString("codigo_reserva");
                 reserva.estado = rs.getString("estado");
                 reserva.correo = rs.getString("correo");
@@ -390,11 +391,12 @@ public class CambiosDAO {
 
     /**
      * Cambia el estado del vuelo (y su horario si "salida" no es null) y crea una notificación
-     * para cada pasajero con reserva confirmada. Devuelve cuántos pasajeros se notificaron.
+     * por cada reserva confirmada que viaja en él (dirigida al comprador). Devuelve esas reservas,
+     * con el id de la notificación creada, para que se envíen los correos y se actualice su estado.
      */
-    public int operarVuelo(int idVuelo, String estado, LocalDateTime salida, LocalDateTime llegada,
+    public ArrayList<DestinatarioDTO> operarVuelo(int idVuelo, String estado, LocalDateTime salida, LocalDateTime llegada,
                            String tipo, String asunto, String mensaje) throws SQLException {
-        int notificados = 0;
+        ArrayList<DestinatarioDTO> destinatarios = new ArrayList<>();
         Connection con = null;
         try {
             con = ConexionDB.conectar();
@@ -418,23 +420,53 @@ public class CambiosDAO {
                 }
             }
 
-            // 2. Notificar a los pasajeros afectados
-            String sqlNotif = "INSERT INTO Notificacion (id_reserva, id_persona, id_vuelo, tipo, asunto, mensaje, correo_destino) "
-                            + "SELECT r.id_reserva, p.id_persona, ?, ?, ?, ?, COALESCE(p.correo, cb.correo) "
-                            + "FROM Tramo_pasajero t "
-                            + "JOIN Reserva_pasajero rp ON rp.id_reserva_pasajero = t.id_reserva_pasajero "
-                            + "JOIN Reserva r ON r.id_reserva = rp.id_reserva "
-                            + "JOIN Persona p ON p.id_persona = rp.id_persona "
-                            + "JOIN Persona cb ON cb.id_persona = r.id_comprador "
-                            + "WHERE t.id_vuelo = ? AND r.estado = 'Confirmada' "
-                            + "AND COALESCE(p.correo, cb.correo) IS NOT NULL";
-            try (PreparedStatement ps = con.prepareStatement(sqlNotif)) {
+            // 2. Buscar las reservas afectadas: UNA fila por reserva, con el correo del COMPRADOR.
+            //    (Los pasajeros adicionales, y en especial niños y bebés, pueden no tener correo.)
+            String sqlDest = "SELECT r.id_reserva, r.codigo_reserva, cb.id_persona AS id_comprador, "
+                           + "       CONCAT(cb.nombres, ' ', cb.apellidos) AS comprador, cb.correo, "
+                           + "       GROUP_CONCAT(DISTINCT CONCAT(p.nombres, ' ', p.apellidos) SEPARATOR ', ') AS pasajeros, "
+                           + "       GROUP_CONCAT(DISTINCT t.sentido SEPARATOR ' y ') AS sentidos "
+                           + "FROM Tramo_pasajero t "
+                           + "JOIN Reserva_pasajero rp ON rp.id_reserva_pasajero = t.id_reserva_pasajero "
+                           + "JOIN Reserva r ON r.id_reserva = rp.id_reserva "
+                           + "JOIN Persona p ON p.id_persona = rp.id_persona "
+                           + "JOIN Persona cb ON cb.id_persona = r.id_comprador "
+                           + "WHERE t.id_vuelo = ? AND r.estado = 'Confirmada' "
+                           + "GROUP BY r.id_reserva, r.codigo_reserva, cb.id_persona, cb.nombres, cb.apellidos, cb.correo";
+            try (PreparedStatement ps = con.prepareStatement(sqlDest)) {
                 ps.setInt(1, idVuelo);
-                ps.setString(2, tipo);
-                ps.setString(3, asunto);
-                ps.setString(4, mensaje);
-                ps.setInt(5, idVuelo);
-                notificados = ps.executeUpdate();
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) {
+                    DestinatarioDTO d = new DestinatarioDTO();
+                    d.idReserva = rs.getInt("id_reserva");
+                    d.codigoReserva = rs.getString("codigo_reserva");
+                    d.idComprador = rs.getInt("id_comprador");
+                    d.titular = rs.getString("comprador");
+                    d.correo = rs.getString("correo");
+                    d.pasajeros = rs.getString("pasajeros");
+                    d.sentidos = rs.getString("sentidos");
+                    destinatarios.add(d);
+                }
+            }
+
+            // 3. Crear la notificación de cada reserva (a nombre del comprador) y guardar su id
+            String sqlNotif = "INSERT INTO Notificacion (id_reserva, id_persona, id_vuelo, tipo, asunto, mensaje, correo_destino) "
+                            + "VALUES (?,?,?,?,?,?,?)";
+            for (DestinatarioDTO d : destinatarios) {
+                try (PreparedStatement ps = con.prepareStatement(sqlNotif, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setInt(1, d.idReserva);
+                    ps.setInt(2, d.idComprador);
+                    ps.setInt(3, idVuelo);
+                    ps.setString(4, tipo);
+                    ps.setString(5, asunto);
+                    ps.setString(6, mensaje);
+                    ps.setString(7, d.correo == null ? "" : d.correo);
+                    ps.executeUpdate();
+                    ResultSet keys = ps.getGeneratedKeys();
+                    if (keys.next()) {
+                        d.idNotificacion = keys.getInt(1);
+                    }
+                }
             }
 
             con.commit();
@@ -448,6 +480,35 @@ public class CambiosDAO {
                 con.close();
             }
         }
-        return notificados;
+        return destinatarios;
+    }
+
+    /** Marca una notificación como enviada o fallida según el resultado real del correo. */
+    public void actualizarEstadoNotificacion(int idNotificacion, boolean enviado) throws SQLException {
+        try (Connection con = ConexionDB.conectar();
+             PreparedStatement ps = con.prepareStatement("UPDATE Notificacion SET estado = ? WHERE id_notificacion = ?")) {
+            ps.setString(1, enviado ? "Enviada" : "Fallida");
+            ps.setInt(2, idNotificacion);
+            ps.executeUpdate();
+        }
+    }
+
+    /** Registra una notificación de reserva (sin vuelo asociado) con el resultado del envío. */
+    public void registrarNotificacion(int idReserva, int idPersona, String tipo, String asunto,
+                                      String mensaje, String correo, boolean enviado) throws SQLException {
+        String sql = "INSERT INTO Notificacion (id_reserva, id_persona, id_vuelo, tipo, asunto, mensaje, correo_destino, estado) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        try (Connection con = ConexionDB.conectar();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, idReserva);
+            ps.setInt(2, idPersona);
+            ps.setNull(3, java.sql.Types.INTEGER);
+            ps.setString(4, tipo);
+            ps.setString(5, asunto);
+            ps.setString(6, mensaje);
+            ps.setString(7, correo);
+            ps.setString(8, enviado ? "Enviada" : "Fallida");
+            ps.executeUpdate();
+        }
     }
 }
