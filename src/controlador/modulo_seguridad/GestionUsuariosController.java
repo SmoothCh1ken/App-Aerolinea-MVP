@@ -91,10 +91,12 @@ public class GestionUsuariosController {
 
                 String secreto = servicio.crear(datos, clave, SesionActual.getUsuario());
                 cargar();
+                
+                // LLAMADA ACTUALIZADA: Se envía el nombre de usuario (datos.getUsuario()) como 4to parámetro
                 vista.mostrarSecreto("Cuenta creada",
                         "La cuenta <b>" + datos.getUsuario() + "</b> fue creada.<br>"
-                      + "Para el segundo factor, agregue esta clave en la aplicación autenticadora "
-                      + "(opción \"ingresar clave manualmente\").<br><b>Se muestra una sola vez.</b>", secreto);
+                      + "Para el segundo factor, escanee este Código QR con su aplicación autenticadora.<br>"
+                      + "<b>Se muestra una sola vez.</b>", secreto, datos.getUsuario());
                 break;
             } catch (ReglaSeguridadException ex) {
                 dialogo.mostrarError(ex.getMessage());
@@ -189,9 +191,11 @@ public class GestionUsuariosController {
                 + "\"? El anterior dejará de funcionar.")) return;
         try {
             String secreto = servicio.restablecerSegundoFactor(u, SesionActual.getUsuario());
+            
+            // LLAMADA ACTUALIZADA: Se envía el nombre de usuario (u.getUsuario()) como 4to parámetro
             vista.mostrarSecreto("Segundo factor restablecido",
-                    "Nueva clave para <b>" + u.getUsuario() + "</b>. Agréguela en la aplicación autenticadora.<br>"
-                  + "<b>Se muestra una sola vez.</b>", secreto);
+                    "Nueva clave para <b>" + u.getUsuario() + "</b>. Escanee el siguiente Código QR en la aplicación autenticadora.<br>"
+                  + "<b>Se muestra una sola vez.</b>", secreto, u.getUsuario());
         } catch (SQLException ex) {
             vista.mostrarError("Error consultando la base de datos: " + ex.getMessage());
         }

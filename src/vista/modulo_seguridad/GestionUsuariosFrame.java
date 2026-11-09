@@ -1,19 +1,28 @@
 package vista.modulo_seguridad;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.event.ActionListener;
 import java.util.List;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.ImageIcon;
 import modelo.modulo_seguridad.Usuario;
 
 /** Pantalla de administración de cuentas institucionales y roles (RF-26 y RF-27). */
@@ -81,7 +90,6 @@ public class GestionUsuariosFrame extends JFrame {
         }
     }
 
-    /** @return la posición de la fila elegida, o -1 si no hay ninguna. */
     public int getFilaSeleccionada() { return tabla.getSelectedRow(); }
 
     public void addNuevoListener(ActionListener l) { btnNuevo.addActionListener(l); }
@@ -109,19 +117,53 @@ public class GestionUsuariosFrame extends JFrame {
         JOptionPane.showMessageDialog(this, texto, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    /** Muestra un secreto de segundo factor en un campo que se puede seleccionar y copiar. */
-    public void mostrarSecreto(String titulo, String explicacion, String secreto) {
-        javax.swing.JTextField campo = new javax.swing.JTextField(secreto);
+    /** 
+     * Muestra un secreto de segundo factor utilizando un Código QR y un campo de texto alternativo.
+     * @param identificador Nombre de usuario (ej: "j.perez") para etiquetar el QR.
+     */
+    public void mostrarSecreto(String titulo, String explicacion, String secreto, String identificador) {
+        JPanel panelPrincipal = new JPanel();
+        panelPrincipal.setLayout(new BoxLayout(panelPrincipal, BoxLayout.Y_AXIS));
+        panelPrincipal.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // 1. Texto Explicativo superior
+        JLabel lblExplicacion = new JLabel("<html><div style='text-align: center; width: 300px;'>" + explicacion + "</div></html>");
+        lblExplicacion.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panelPrincipal.add(lblExplicacion);
+        panelPrincipal.add(Box.createVerticalStrut(15));
+
+        // 2. Generación y renderizado del Código QR
+        ImageIcon iconoQR = GeneradorQR.generarIconoQR(identificador, secreto);
+        JLabel lblQR = new JLabel();
+        if (iconoQR != null) {
+            lblQR.setIcon(iconoQR);
+        } else {
+            lblQR.setText("[Error renderizando código QR]");
+            lblQR.setForeground(java.awt.Color.RED);
+        }
+        lblQR.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panelPrincipal.add(lblQR);
+        panelPrincipal.add(Box.createVerticalStrut(15));
+
+        // 3. Etiqueta intermedia
+        JLabel lblAlternativa = new JLabel("O ingrese esta clave manualmente:");
+        lblAlternativa.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblAlternativa.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panelPrincipal.add(lblAlternativa);
+        panelPrincipal.add(Box.createVerticalStrut(5));
+
+        // 4. Campo de texto seleccionable (Fallback)
+        JTextField campo = new JTextField(secreto);
         campo.setEditable(false);
-        campo.setFont(new java.awt.Font("Monospaced", java.awt.Font.BOLD, 18));
-        campo.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
-        panel.add(new javax.swing.JLabel("<html>" + explicacion + "</html>"), BorderLayout.NORTH);
-        panel.add(campo, BorderLayout.CENTER);
-        JOptionPane.showMessageDialog(this, panel, titulo, JOptionPane.INFORMATION_MESSAGE);
+        campo.setFont(new Font("Monospaced", Font.BOLD, 18));
+        campo.setHorizontalAlignment(SwingConstants.CENTER);
+        campo.setMaximumSize(new Dimension(300, 35)); // Evita que se estire en el BoxLayout
+        campo.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panelPrincipal.add(campo);
+
+        JOptionPane.showMessageDialog(this, panelPrincipal, titulo, JOptionPane.INFORMATION_MESSAGE);
     }
 
-    /** Pide una contraseña nueva dos veces. @return la clave, o null si se cancela o no coinciden. */
     public char[] pedirClaveNueva(String titulo) {
         javax.swing.JPasswordField a = new javax.swing.JPasswordField(18);
         javax.swing.JPasswordField b = new javax.swing.JPasswordField(18);
