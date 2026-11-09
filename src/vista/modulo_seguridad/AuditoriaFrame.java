@@ -65,7 +65,7 @@ public class AuditoriaFrame extends JFrame {
     public AuditoriaFrame(boolean verAuditoria, boolean verIncidentes) {
         super("Auditoría e incidentes de seguridad");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(1100, 600);
+        setSize(1250, 600);
         setLocationRelativeTo(null);
 
         JPanel principal = new JPanel(new BorderLayout(8, 8));

@@ -4,6 +4,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.net.URL;
 
 /**
  * Menú Principal rediseñado con interfaz moderna estilo Web.
@@ -14,6 +15,7 @@ public class MenuPrincipalFrame extends JFrame {
 
     // Botón superior de sesión / perfil
     private final JButton btnUsuario = new JButton("Login");
+    private ImageIcon iconoUsuario; // Referencia para mantener el icono cargado
 
     // Botones públicos (All Users)
     private final JButton btnReservar = new JButton("Reservar Nuevo Vuelo");
@@ -36,6 +38,9 @@ public class MenuPrincipalFrame extends JFrame {
         setResizable(false);
         setLayout(new BorderLayout());
 
+        // --- CARGAR EL ICONO DE USUARIO ---
+        cargarIconoUsuario();
+
         // --- 1. BARRA SUPERIOR (HEADER) ---
         JPanel pnlHeader = new JPanel(new BorderLayout());
         pnlHeader.setBackground(new Color(25, 115, 210)); // Azul corporativo
@@ -51,6 +56,14 @@ public class MenuPrincipalFrame extends JFrame {
         btnUsuario.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnUsuario.setBackground(Color.WHITE);
         btnUsuario.setForeground(new Color(25, 115, 210));
+        
+        // Asignar el icono al botón si se cargó correctamente
+        if (iconoUsuario != null) {
+            btnUsuario.setIcon(iconoUsuario);
+            // Opcional: poner el icono a la izquierda del texto y ajustar el espacio
+            btnUsuario.setHorizontalTextPosition(SwingConstants.RIGHT);
+            btnUsuario.setIconTextGap(6);
+        }
 
         pnlHeader.add(lblLogo, BorderLayout.WEST);
         pnlHeader.add(btnUsuario, BorderLayout.EAST);
@@ -106,6 +119,26 @@ public class MenuPrincipalFrame extends JFrame {
         setEstadoSesion(false, null);
     }
 
+    /**
+     * Carga de manera segura el archivo de imagen desde el paquete de recursos.
+     */
+    private void cargarIconoUsuario() {
+        try {
+            // Busca la ruta dentro de las carpetas fuentes del proyecto
+            URL rutaImagen = getClass().getResource("/vista/recursos/icon-user.png");
+            if (rutaImagen != null) {
+                ImageIcon iconoOriginal = new ImageIcon(rutaImagen);
+                // Escalar la imagen a un tamaño óptimo para el botón (ej. 16x16 píxeles)
+                Image imagenEscalada = iconoOriginal.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
+                iconoUsuario = new ImageIcon(imagenEscalada);
+            } else {
+                System.err.println("No se pudo encontrar el archivo de icono en /recursos/icon-user.png");
+            }
+        } catch (Exception e) {
+            System.err.println("Error al cargar el icono de usuario: " + e.getMessage());
+        }
+    }
+
     private void estilarBotonPublico(JButton btn) {
         btn.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         btn.setFocusPainted(false);
@@ -131,14 +164,20 @@ public class MenuPrincipalFrame extends JFrame {
      */
     public void setEstadoSesion(boolean logueado, String usuarioNombre) {
         if (logueado && usuarioNombre != null && !usuarioNombre.trim().isEmpty()) {
-            btnUsuario.setText("👤 " + usuarioNombre);
+            btnUsuario.setText(" " + usuarioNombre);
             lblTituloAdmin.setVisible(true);
             pnlAdmin.setVisible(true);
         } else {
-            btnUsuario.setText("👤 Login");
+            btnUsuario.setText(" Login");
             lblTituloAdmin.setVisible(false);
             pnlAdmin.setVisible(false);
         }
+        
+        // Reasignar el icono por seguridad al cambiar el texto del botón
+        if (iconoUsuario != null) {
+            btnUsuario.setIcon(iconoUsuario);
+        }
+        
         revalidate();
         repaint();
     }
