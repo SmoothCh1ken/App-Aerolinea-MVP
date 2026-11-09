@@ -14,7 +14,7 @@ import java.net.URL;
 public class MenuPrincipalFrame extends JFrame {
 
     // Botón superior de sesión / perfil
-    private final JButton btnUsuario = new JButton("Login");
+    private final JButton btnUsuario = new JButton("Iniciar Sesión");
     private ImageIcon iconoUsuario; // Referencia para mantener el icono cargado
 
     // Botones públicos (All Users)
@@ -168,7 +168,7 @@ public class MenuPrincipalFrame extends JFrame {
             lblTituloAdmin.setVisible(true);
             pnlAdmin.setVisible(true);
         } else {
-            btnUsuario.setText(" Login");
+            btnUsuario.setText(" Iniciar Sesión");
             lblTituloAdmin.setVisible(false);
             pnlAdmin.setVisible(false);
         }
