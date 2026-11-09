@@ -4,10 +4,12 @@ import modelo.modulo_cambios.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Locale;
 
 /**
  * Reglas de negocio del módulo 4. Se apoya en el DAO para leer/guardar datos.
@@ -16,14 +18,40 @@ import java.util.ArrayList;
 public class CambiosController {
 
     private final CambiosDAO dao = new CambiosDAO();
+    private final NotificadorCambios notificador = new NotificadorCambios();
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
     private static final DateTimeFormatter FORMATO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    /** Formato de dinero para los correos: $1.234.567 */
+    private String dinero(BigDecimal valor) {
+        NumberFormat nf = NumberFormat.getInstance(Locale.forLanguageTag("es-CO"));
+        nf.setMinimumFractionDigits(0);
+        nf.setMaximumFractionDigits(2);
+        return "$" + nf.format(valor);
+    }
 
     // ---------- métodos de apoyo ----------
 
     /** Un vuelo cancelado o reprogramado hace que el cambio sea "operacional" (sin cargos). */
     private boolean esOperacional(TramoInfoDTO t) {
         return !t.estadoVuelo.equals("Programado");
+    }
+
+    /** Texto "el vuelo AV289 (reprogramado)" con los vuelos que la AEROLÍNEA modificó; null si ninguno. */
+    private String vuelosModificadosPorAerolinea(java.util.List<TramoInfoDTO> tramos) {
+        ArrayList<String> vuelos = new ArrayList<>();
+        for (TramoInfoDTO t : tramos) {
+            if (esOperacional(t)) {
+                String v = t.numeroVuelo + " (" + t.estadoVuelo.toLowerCase() + ")";
+                if (!vuelos.contains(v)) {
+                    vuelos.add(v);
+                }
+            }
+        }
+        if (vuelos.isEmpty()) {
+            return null;
+        }
+        return (vuelos.size() == 1 ? "el vuelo " : "los vuelos ") + String.join(", ", vuelos);
     }
 
     private long horasHasta(LocalDateTime fecha) {
@@ -124,6 +152,10 @@ public class CambiosController {
 
         CotizacionDTO q = new CotizacionDTO();
         q.motivo = operacional ? "Operacional" : "Voluntario";
+        if (operacional) {
+            q.avisoAerolinea = "No se cobra cargo por cambio porque la aerolínea modificó "
+                    + vuelosModificadosPorAerolinea(tramos) + ".";
+        }
 
         for (TramoInfoDTO t : tramos) {
             BigDecimal base = precioNuevo(o, t);
@@ -141,8 +173,8 @@ public class CambiosController {
         return q;
     }
 
-    /** Aplica el cambio. Devuelve el id del cambio creado. */
-    public int cambiar(ReservaInfoDTO r, String sentido, OpcionCambioDTO o) throws Exception {
+    /** Aplica el cambio y envía los correos de confirmación. Devuelve el id del cambio y el estado de los correos. */
+    public ResultadoCambio cambiar(ReservaInfoDTO r, String sentido, OpcionCambioDTO o) throws Exception {
         // Se vuelve a validar que el vuelo siga disponible
         OpcionCambioDTO elegida = null;
         for (OpcionCambioDTO x : opciones(r, sentido)) {
@@ -162,7 +194,54 @@ public class CambiosController {
 
         CotizacionDTO q = cotizarCambio(r, sentido, elegida);
         TramoInfoDTO referencia = r.tramos(sentido).get(0);
-        return dao.registrarCambio(r, sentido, referencia, elegida, q);
+
+        ResultadoCambio resultado = new ResultadoCambio();
+        resultado.idCambio = dao.registrarCambio(r, sentido, referencia, elegida, q);
+
+        // Un solo correo al comprador (si falla, el cambio ya quedó registrado)
+        String asunto = q.neto.signum() < 0
+                ? "Modificación de vuelo y confirmación de reembolso - Reserva " + r.codigo
+                : "Modificación de vuelo - Reserva " + r.codigo;
+        resultado.correos.agregar(notificador.avisarReserva(r, NotificadorCambios.TIPO_CAMBIO_VUELO,
+                asunto, mensajeCambio(r, sentido, referencia, elegida, q, resultado.idCambio)));
+        return resultado;
+    }
+
+    private String mensajeCambio(ReservaInfoDTO r, String sentido, TramoInfoDTO anterior,
+                                 OpcionCambioDTO nuevo, CotizacionDTO q, int idCambio) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Hola ").append(r.titular).append(",\n\n");
+        if (q.neto.signum() > 0) {
+            sb.append("Registramos el cambio #").append(idCambio).append(" que solicitaste en tu reserva ")
+              .append(r.codigo).append(". Quedará aplicado una vez se pague la diferencia.\n\n");
+        } else {
+            sb.append("El cambio #").append(idCambio).append(" que solicitaste en tu reserva ")
+              .append(r.codigo).append(" fue aplicado correctamente.\n\n");
+        }
+        sb.append("Tramo modificado: ").append(sentido).append("\n");
+        sb.append("Vuelo anterior: ").append(anterior.numeroVuelo).append(" ").append(anterior.origen)
+          .append(" -> ").append(anterior.destino).append(", salida ").append(anterior.salida.format(FORMATO)).append("\n");
+        sb.append("Vuelo nuevo: ").append(nuevo.numeroVuelo).append(" ").append(anterior.origen)
+          .append(" -> ").append(anterior.destino).append(", salida ").append(nuevo.salida.format(FORMATO)).append("\n");
+        sb.append("Pasajeros: ");
+        ArrayList<TramoInfoDTO> tramos = r.tramos(sentido);
+        for (int i = 0; i < tramos.size(); i++) {
+            sb.append(i > 0 ? ", " : "").append(tramos.get(i).pasajero);
+        }
+        sb.append("\n\nCargo por cambio: ").append(dinero(q.cargo));
+        sb.append("\nDiferencia de tarifa: ").append(dinero(q.diferencia));
+        if (q.avisoAerolinea != null) {
+            sb.append("\n").append(q.avisoAerolinea);
+        }
+        if (q.neto.signum() > 0) {
+            sb.append("\nValor a pagar: ").append(dinero(q.neto));
+        } else if (q.neto.signum() < 0) {
+            sb.append("\nSaldo a favor: ").append(dinero(q.neto.negate()));
+            sb.append("\n\nConfirmación de reembolso: registramos la solicitud de reembolso por ese saldo a favor")
+              .append(" (sin penalidad). Estado: Solicitado.");
+        }
+        sb.append("\n\nAtentamente,\nAirColombia");
+        return sb.toString();
     }
 
     // ---------- cancelar y reembolsar ----------
@@ -183,6 +262,10 @@ public class CambiosController {
 
         CotizacionDTO q = new CotizacionDTO();
         q.motivo = operacional ? "Cancelación operacional" : "Cancelación voluntaria";
+        if (operacional) {
+            q.avisoAerolinea = "No se aplica penalidad porque la aerolínea modificó "
+                    + vuelosModificadosPorAerolinea(r.tramos) + ".";
+        }
 
         for (TramoInfoDTO t : r.tramos) {
             q.base = q.base.add(t.total());
@@ -203,9 +286,48 @@ public class CambiosController {
         return q;
     }
 
-    public void cancelar(ReservaInfoDTO r) throws Exception {
+    /**
+     * Cancela la reserva por solicitud del cliente y envía UN solo correo al comprador con la
+     * confirmación de la cancelación y del reembolso. No tiene relación con las cancelaciones
+     * de vuelo hechas por la aerolínea (esas pasan por cancelarVuelo / reprogramarVuelo).
+     */
+    public ResumenNotificacion cancelar(ReservaInfoDTO r) throws Exception {
         CotizacionDTO q = cotizarReembolso(r);
         dao.cancelarReserva(r, q);
+
+        String asunto = q.reembolso.signum() > 0
+                ? "Cancelación de reserva " + r.codigo + " y confirmación de reembolso"
+                : "Cancelación de reserva " + r.codigo;
+        ResumenNotificacion correos = new ResumenNotificacion();
+        correos.agregar(notificador.avisarReserva(r, NotificadorCambios.TIPO_CANCELACION_RESERVA,
+                asunto, mensajeCancelacion(r, q)));
+        return correos;
+    }
+
+    private String mensajeCancelacion(ReservaInfoDTO r, CotizacionDTO q) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Hola ").append(r.titular).append(",\n\n");
+        sb.append("Recibimos tu solicitud: tu reserva ").append(r.codigo)
+          .append(" fue cancelada y sus tiquetes quedaron anulados.\n\nItinerario cancelado:\n");
+        for (TramoInfoDTO t : r.tramos) {
+            sb.append("- ").append(t.sentido).append(": vuelo ").append(t.numeroVuelo).append(" ")
+              .append(t.origen).append(" -> ").append(t.destino).append(", salida ")
+              .append(t.salida.format(FORMATO)).append(" (").append(t.pasajero).append(")\n");
+        }
+        sb.append("\nConfirmación de reembolso:\n");
+        sb.append("Valor de los tiquetes: ").append(dinero(q.base)).append("\n");
+        sb.append("Penalidad: ").append(dinero(q.penalidad)).append("\n");
+        if (q.avisoAerolinea != null) {
+            sb.append(q.avisoAerolinea).append("\n");
+        }
+        if (q.reembolso.signum() > 0) {
+            sb.append("Valor a reembolsar: ").append(dinero(q.reembolso)).append("\n");
+            sb.append("Estado de la solicitud de reembolso: Solicitado\n");
+        } else {
+            sb.append("No hay valor a reembolsar.\n");
+        }
+        sb.append("\nAtentamente,\nAirColombia");
+        return sb.toString();
     }
 
     public ArrayList<String> historial(int idReserva) throws Exception {
@@ -222,17 +344,22 @@ public class CambiosController {
         return dao.buscarVuelo(id);
     }
 
-    public int cancelarVuelo(VueloInfoDTO v) throws Exception {
+    /** Cancela el vuelo, registra las notificaciones y envía el correo a cada pasajero afectado. */
+    public ResumenNotificacion cancelarVuelo(VueloInfoDTO v) throws Exception {
         if (v.estado.equals("Cancelado")) {
             throw new Exception("El vuelo ya está cancelado.");
         }
         String asunto = "Cancelación de Vuelo " + v.numero;
-        String mensaje = "Lamentamos informar que su vuelo " + v.numero + " del " + v.salida.format(FORMATO)
+        String mensaje = "Lamentamos informar que su vuelo " + v.numero + " (" + v.ruta + ") del "
+                + v.salida.format(FORMATO)
                 + " fue cancelado. Puede reubicarse en otro vuelo o solicitar el reembolso sin penalidad.";
-        return dao.operarVuelo(v.id, "Cancelado", null, null, "Vuelo cancelado", asunto, mensaje);
+        ArrayList<DestinatarioDTO> afectados =
+                dao.operarVuelo(v.id, "Cancelado", null, null, "Vuelo cancelado", asunto, mensaje);
+        return notificador.avisarVuelo(afectados, asunto, mensaje);
     }
 
-    public int reprogramarVuelo(VueloInfoDTO v, int horas) throws Exception {
+    /** Reprograma el vuelo, registra las notificaciones y envía el correo a cada pasajero afectado. */
+    public ResumenNotificacion reprogramarVuelo(VueloInfoDTO v, int horas) throws Exception {
         if (v.estado.equals("Cancelado")) {
             throw new Exception("No se puede reprogramar un vuelo cancelado.");
         }
@@ -242,8 +369,11 @@ public class CambiosController {
         LocalDateTime nuevaSalida = v.salida.plusHours(horas);
         LocalDateTime nuevaLlegada = v.llegada.plusHours(horas);
         String asunto = "Cambio Operacional Vuelo " + v.numero;
-        String mensaje = "Su vuelo " + v.numero + " fue reprogramado para el " + nuevaSalida.format(FORMATO)
+        String mensaje = "Su vuelo " + v.numero + " (" + v.ruta + ") programado para el " + v.salida.format(FORMATO)
+                + " fue reprogramado para el " + nuevaSalida.format(FORMATO)
                 + ". Puede aceptar el cambio, reubicarse en otro vuelo o solicitar el reembolso sin penalidad.";
-        return dao.operarVuelo(v.id, "Reprogramado", nuevaSalida, nuevaLlegada, "Vuelo reprogramado", asunto, mensaje);
+        ArrayList<DestinatarioDTO> afectados =
+                dao.operarVuelo(v.id, "Reprogramado", nuevaSalida, nuevaLlegada, "Vuelo reprogramado", asunto, mensaje);
+        return notificador.avisarVuelo(afectados, asunto, mensaje);
     }
 }
