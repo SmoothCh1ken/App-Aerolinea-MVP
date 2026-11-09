@@ -24,6 +24,7 @@ import modelo.modulo_reportes.ResultadoReporte;
 import modelo.modulo_reportes.TableroDAO;
 import modelo.modulo_reportes.TipoReporte;
 import vista.modulo_reportes.ReportesFrame;
+import controlador.modulo_seguridad.GuardiaAcceso;
 
 /**
  * Controlador del módulo de Reportes Gerenciales y Analítica (RF-32, RF-33 y RF-34).
@@ -81,6 +82,7 @@ public class ReportesController {
     public static ReportesController iniciar(Runnable alSalir) {
         ReportesFrame frame = new ReportesFrame();
         ReportesController controlador = new ReportesController(frame, alSalir);
+        GuardiaAcceso.registrar(frame);
         frame.setVisible(true);
         return controlador;
     }
