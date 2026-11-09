@@ -49,7 +49,7 @@ public class ReportesFrame extends JFrame {
     // --- Reportes ---
     private final JComboBox<TipoReporte> cmbTipo = new JComboBox<>(TipoReporte.values());
     private final JButton btnGenerar = new JButton("Generar reporte");
-    private final JButton btnExportar = new JButton("Exportar a CSV");
+    private final JButton btnExportar = new JButton("Exportar reporte..."); // Actualizado para reflejar múltiples formatos
     private final JLabel lblNota = new JLabel(" ");
     private final DefaultTableModel modeloTabla = new DefaultTableModel() {
         @Override public boolean isCellEditable(int fila, int columna) { return false; }
@@ -235,18 +235,45 @@ public class ReportesFrame extends JFrame {
         JOptionPane.showMessageDialog(this, texto, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    /** @return el archivo elegido para guardar el CSV, o null si se cancela. */
-    public File elegirArchivoCsv(String nombreSugerido) {
+    /** 
+     * Selector de archivos unificado para exportar en múltiples formatos (CSV, Excel, PDF). 
+     * Permite al usuario elegir la extensión y ajusta el nombre automáticamente.
+     */
+    public File elegirArchivoExportacion(String nombreBase) {
         JFileChooser selector = new JFileChooser();
-        selector.setFileFilter(new FileNameExtensionFilter("Archivo CSV (*.csv)", "csv"));
-        selector.setSelectedFile(new File(nombreSugerido));
+        selector.setDialogTitle("Guardar reporte exportado");
+        
+        // Filtros para los tres formatos soportados
+        FileNameExtensionFilter filtroExcel = new FileNameExtensionFilter("Libro de Excel (*.xlsx)", "xlsx");
+        FileNameExtensionFilter filtroPdf = new FileNameExtensionFilter("Documento PDF (*.pdf)", "pdf");
+        FileNameExtensionFilter filtroCsv = new FileNameExtensionFilter("Archivo CSV (*.csv)", "csv");
+        
+        selector.addChoosableFileFilter(filtroExcel);
+        selector.addChoosableFileFilter(filtroPdf);
+        selector.addChoosableFileFilter(filtroCsv);
+        selector.setFileFilter(filtroExcel); // Por defecto sugerimos Excel moderno o CSV
+        
+        selector.setSelectedFile(new File(nombreBase + ".xlsx"));
+
         if (selector.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
             return null;
         }
+
         File archivo = selector.getSelectedFile();
-        if (!archivo.getName().toLowerCase().endsWith(".csv")) {
+        javax.swing.filechooser.FileFilter filtroActual = selector.getFileFilter();
+
+        // Asegurar la extensión correcta según el filtro seleccionado por el usuario
+        String nombre = archivo.getName().toLowerCase();
+        if (filtroActual == filtroPdf && !nombre.endsWith(".pdf")) {
+            archivo = new File(archivo.getParentFile(), archivo.getName() + ".pdf");
+        } else if (filtroActual == filtroExcel && !nombre.endsWith(".xlsx")) {
+            archivo = new File(archivo.getParentFile(), archivo.getName() + ".xlsx");
+        } else if (filtroActual == filtroCsv && !nombre.endsWith(".csv")) {
             archivo = new File(archivo.getParentFile(), archivo.getName() + ".csv");
+        } else if (!nombre.endsWith(".xlsx") && !nombre.endsWith(".pdf") && !nombre.endsWith(".csv")) {
+            archivo = new File(archivo.getParentFile(), archivo.getName() + ".xlsx"); // Predeterminado
         }
+
         return archivo;
     }
 }
