@@ -15,15 +15,15 @@ import javax.mail.internet.MimeMessage;
  */
 public class ServicioCorreoSeguridad {
 
-    private static final String REMITENTE = "seguridad@aerolineamvp.com";
-    private static final String CLAVE_REMITENTE = "SeguridadMvp2026!";
+    private static final String REMITENTE = "luciano.bascur28@gmail.com";
+    private static final String CLAVE_REMITENTE = "hezntktejpildwls";
 
     /**
      * Envía un código OTP de 6 dígitos al correo especificado.
      * Muestra la traza en consola para pruebas locales y lanza un hilo para el envío SMTP.
      */
     public static boolean enviarCodigo(String correoDestino, String codigo) {
-        System.out.println("[SEGURIDAD - CORREO] Código de verificación [" + codigo + "] generado para: " + correoDestino);
+        //System.out.println("[SEGURIDAD - CORREO] Código de verificación [" + codigo + "] generado para: " + correoDestino);
 
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");

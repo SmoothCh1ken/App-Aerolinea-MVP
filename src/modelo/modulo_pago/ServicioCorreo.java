@@ -16,7 +16,7 @@ public class ServicioCorreo {
     private static final String SMTP_HOST = "smtp.gmail.com";
     private static final int SMTP_PORT = 587;
     private static final String CORREO_ORIGEN = "luciano.bascur28@gmail.com"; 
-    private static final String PASSWORD_APP = "hezntktejpildwls"; // <-- RECUERDA PONER TU CLAVE
+    private static final String PASSWORD_APP = "hezntktejpildwls";
 
     private ServicioCorreo() { }
 
